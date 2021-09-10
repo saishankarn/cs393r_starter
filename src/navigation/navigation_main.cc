@@ -48,6 +48,8 @@
 
 #include "navigation.h"
 
+using namespace std;
+
 using amrl_msgs::Localization2DMsg;
 using math_util::DegToRad;
 using math_util::RadToDeg;
@@ -141,6 +143,9 @@ int main(int argc, char** argv) {
   ros::Subscriber goto_sub =
       n.subscribe("/move_base_simple/goal", 1, &GoToCallback);
 
+  cout << "spinning once before the run loop";
+  ros::spinOnce();
+  ros::spinOnce();
   RateLoop loop(20.0);
   while (run_ && ros::ok()) {
     ros::spinOnce();

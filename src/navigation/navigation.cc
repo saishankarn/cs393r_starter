@@ -39,6 +39,7 @@ using amrl_msgs::VisualizationMsg;
 using std::string;
 using std::vector;
 
+using namespace std;
 using namespace math_util;
 using namespace ros_helpers;
 
@@ -59,10 +60,12 @@ Navigation::Navigation(const string& map_file, ros::NodeHandle* n) :
     localization_initialized_(false),
     robot_loc_(0, 0),
     robot_angle_(0),
+    robot_start_loc_(0),
+    robot_start_angle_(0),
     robot_vel_(0, 0),
     robot_omega_(0),
     nav_complete_(true),
-    nav_goal_loc_(0, 0),
+    nav_goal_loc_(10, 0),
     nav_goal_angle_(0) {
   drive_pub_ = n->advertise<AckermannCurvatureDriveMsg>(
       "ackermann_curvature_drive", 1);
@@ -75,6 +78,7 @@ Navigation::Navigation(const string& map_file, ros::NodeHandle* n) :
 }
 
 void Navigation::SetNavGoal(const Vector2f& loc, float angle) {
+
 }
 
 void Navigation::UpdateLocation(const Eigen::Vector2f& loc, float angle) {
@@ -89,14 +93,17 @@ void Navigation::UpdateOdometry(const Vector2f& loc,
                                 float ang_vel) {
   robot_omega_ = ang_vel;
   robot_vel_ = vel;
+  odom_loc_ = loc;
+  odom_angle_ = angle;
   if (!odom_initialized_) {
     odom_start_angle_ = angle;
     odom_start_loc_ = loc;
     odom_initialized_ = true;
+    odom_loc_ = loc;
+    odom_angle_ = angle;
     return;
   }
-  odom_loc_ = loc;
-  odom_angle_ = angle;
+  
 }
 
 void Navigation::ObservePointCloud(const vector<Vector2f>& cloud,
@@ -114,14 +121,48 @@ void Navigation::Run() {
   // If odometry has not been initialized, we can't do anything.
   if (!odom_initialized_) return;
 
+  //cout <<"printing robot position ....." << "\n";
+  //cout << robot_loc_ << '\n';
+  //cout << robot_angle_ << '\n';
+  //cout <<"printing odometry position ....." << "\n";
+  //cout << odom_loc_ << '\n';
+  //cout << odom_angle_ << '\n';
+
+  
+  float rotation = odom_angle_ - odom_start_angle_;
+  
+  Eigen::Rotation2Df r1(rotation);
+  Eigen::Vector2f t1 = odom_loc_ - odom_start_loc_;
+  
+  Eigen::Matrix3f T;
+  T << 1, 0, 0,
+       0, 1, 0,
+       0, 0, 1;
+  Eigen::Matrix2f m1 = r1.toRotationMatrix();
+  T(0,0) = m1(0,0);
+  T(0,1) = m1(0,1);
+  T(1,0) = m1(1,0);
+  T(1,1) = m1(1,1);
+  T(0,2) = t1(0);
+  T(1,2) = t1(1);
+  cout << T << '\n';
+  cout << m1 << '\n';
+  cout << odom_angle_ << '\n';
+  cout << odom_start_angle_ << '\n';
+  cout << "Printing robot velocity from odometry" << '\n';
+  cout << robot_vel_ << '\n';
+  cout << robot_vel_.norm() << '\n';
+  
+  
+
   // The control iteration goes here. 
   // Feel free to make helper functions to structure the control appropriately.
   
   // The latest observed point cloud is accessible via "point_cloud_"
 
   // Eventually, you will have to set the control values to issue drive commands:
-  // drive_msg_.curvature = ...;
-  // drive_msg_.velocity = ...;
+  drive_msg_.curvature = 0;
+  drive_msg_.velocity = 0.5;
 
   // Add timestamps to all messages.
   local_viz_msg_.header.stamp = ros::Time::now();

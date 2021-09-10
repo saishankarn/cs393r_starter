@@ -75,6 +75,10 @@ class Navigation {
   Eigen::Vector2f robot_loc_;
   // Current robot orientation.
   float robot_angle_;
+  // Current robot location.
+  Eigen::Vector2f robot_start_loc_;
+  // Current robot orientation.
+  float robot_start_angle_;
   // Current robot velocity.
   Eigen::Vector2f robot_vel_;
   // Current robot angular speed.
@@ -87,6 +91,7 @@ class Navigation {
   Eigen::Vector2f odom_start_loc_;
   // Odometry-reported robot starting angle.
   float odom_start_angle_;
+  // Odometry-reported
   // Latest observed point cloud.
   std::vector<Eigen::Vector2f> point_cloud_;
 
