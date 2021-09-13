@@ -2,7 +2,7 @@
 //  This software is free: you can redistribute it and/or modify
 //  it under the terms of the GNU Lesser General Public License Version 3,
 //  as published by the Free Software Foundation.
-//
+// 
 //  This software is distributed in the hope that it will be useful,
 //  but WITHOUT ANY WARRANTY; without even the implied warranty of
 //  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
@@ -18,7 +18,7 @@
 \author  Joydeep Biswas, (C) 2019
 */
 //========================================================================
-
+ 
 #include "gflags/gflags.h"
 #include "eigen3/Eigen/Dense"
 #include "eigen3/Eigen/Geometry"
@@ -39,7 +39,6 @@ using amrl_msgs::VisualizationMsg;
 using std::string;
 using std::vector;
 
-using namespace std;
 using namespace math_util;
 using namespace ros_helpers;
 
@@ -60,13 +59,11 @@ Navigation::Navigation(const string& map_file, ros::NodeHandle* n) :
     localization_initialized_(false),
     robot_loc_(0, 0),
     robot_angle_(0),
-    robot_start_loc_(0),
-    robot_start_angle_(0),
     robot_vel_(0, 0),
     robot_omega_(0),
     nav_complete_(true),
-    nav_goal_loc_(10, 0),
-    nav_goal_angle_(0) {
+    nav_goal_loc_(1.43, 0),
+    nav_goal_angle_(0){
   drive_pub_ = n->advertise<AckermannCurvatureDriveMsg>(
       "ackermann_curvature_drive", 1);
   viz_pub_ = n->advertise<VisualizationMsg>("visualization", 1);
@@ -77,8 +74,18 @@ Navigation::Navigation(const string& map_file, ros::NodeHandle* n) :
   InitRosHeader("base_link", &drive_msg_.header);
 }
 
-void Navigation::SetNavGoal(const Vector2f& loc, float angle) {
+std::tuple<Eigen::Vector2f, float> Navigation::getRelativePose(
+  const Eigen::Vector2f initPos, float initAngle, 
+  const Eigen::Vector2f endPos, float endAngle) const {
 
+  Eigen::Rotation2Df rotMat(initAngle);
+  Eigen::Vector2f pos = rotMat.toRotationMatrix().inverse()*(endPos - initPos);
+  float angle = endAngle - initAngle;
+
+  return std::make_tuple(pos, angle);
+  }
+
+void Navigation::SetNavGoal(const Vector2f& loc, float angle) {
 }
 
 void Navigation::UpdateLocation(const Eigen::Vector2f& loc, float angle) {
@@ -93,22 +100,24 @@ void Navigation::UpdateOdometry(const Vector2f& loc,
                                 float ang_vel) {
   robot_omega_ = ang_vel;
   robot_vel_ = vel;
-  odom_loc_ = loc;
-  odom_angle_ = angle;
+
   if (!odom_initialized_) {
     odom_start_angle_ = angle;
     odom_start_loc_ = loc;
     odom_initialized_ = true;
     odom_loc_ = loc;
     odom_angle_ = angle;
+
     return;
   }
-  
+  odom_loc_ = loc;
+  odom_angle_ = angle;
 }
 
 void Navigation::ObservePointCloud(const vector<Vector2f>& cloud,
                                    double time) {
-  point_cloud_ = cloud;                                     
+  point_cloud_ = cloud;    
+
 }
 
 void Navigation::Run() {
@@ -117,43 +126,9 @@ void Navigation::Run() {
   // Clear previous visualizations.
   visualization::ClearVisualizationMsg(local_viz_msg_);
   visualization::ClearVisualizationMsg(global_viz_msg_);
-
+ 
   // If odometry has not been initialized, we can't do anything.
   if (!odom_initialized_) return;
-
-  //cout <<"printing robot position ....." << "\n";
-  //cout << robot_loc_ << '\n';
-  //cout << robot_angle_ << '\n';
-  //cout <<"printing odometry position ....." << "\n";
-  //cout << odom_loc_ << '\n';
-  //cout << odom_angle_ << '\n';
-
-  
-  float rotation = odom_angle_ - odom_start_angle_;
-  
-  Eigen::Rotation2Df r1(rotation);
-  Eigen::Vector2f t1 = odom_loc_ - odom_start_loc_;
-  
-  Eigen::Matrix3f T;
-  T << 1, 0, 0,
-       0, 1, 0,
-       0, 0, 1;
-  Eigen::Matrix2f m1 = r1.toRotationMatrix();
-  T(0,0) = m1(0,0);
-  T(0,1) = m1(0,1);
-  T(1,0) = m1(1,0);
-  T(1,1) = m1(1,1);
-  T(0,2) = t1(0);
-  T(1,2) = t1(1);
-  cout << T << '\n';
-  cout << m1 << '\n';
-  cout << odom_angle_ << '\n';
-  cout << odom_start_angle_ << '\n';
-  cout << "Printing robot velocity from odometry" << '\n';
-  cout << robot_vel_ << '\n';
-  cout << robot_vel_.norm() << '\n';
-  
-  
 
   // The control iteration goes here. 
   // Feel free to make helper functions to structure the control appropriately.
@@ -161,9 +136,43 @@ void Navigation::Run() {
   // The latest observed point cloud is accessible via "point_cloud_"
 
   // Eventually, you will have to set the control values to issue drive commands:
-  drive_msg_.curvature = 0;
-  drive_msg_.velocity = 0.5;
+  Eigen::Vector2f relPos;
+  float relAngle;
+  std::tie(relPos, relAngle) = getRelativePose(odom_start_loc_, odom_start_angle_, odom_loc_, odom_angle_);
+  float distTrav = relPos.norm();
+  std::cout << "Printing ooooodometry ......" << '\n';
+  std::cout << odom_loc_ << '\n';
+  float v0 = robot_vel_.norm();
+  std::cout << "Robot velocity: "<< robot_vel_ << "\n";
 
+  float state = distTrav + (vel_array[2] + vel_array[3] + vel_array[4] + vel_array[5]) * del_t;
+  float distRem = nav_goal_loc_.norm() - state;
+  
+  if (distRem <= 0.0) {
+    drive_msg_.velocity = 0.0;
+  }
+  else {
+    float v1 = v0 + max_acc*del_t;
+    float del_s1 = v1*del_t + 0.5*v1*v1/max_dec;
+    float del_s2 = 0.5*v0*v0/max_dec;
+    if (v1 <= max_vel && del_s1 < distRem) {
+      drive_msg_.velocity = v1;
+      std::cout << "Acceleration phase" << "\n";
+    }
+    else if (v0 <= max_vel && del_s2 < distRem) {
+      drive_msg_.velocity = v0;
+      std::cout << "Cruise phase" << "\n";
+    }
+    else {
+      drive_msg_.velocity = v0 - max_dec*del_t;
+      std::cout << "Deceleration phase" << "\n";
+    }
+  }
+  drive_msg_.curvature = 1/0.91;
+  std::cout << "Command velocity: "<<drive_msg_.velocity << "\n";
+  // drive_msg_.velocity = 0.1;
+  std::cout << "Distance traveled : " << distTrav << '\n';
+  std::cout << "State traveled : " << state << '\n';
   // Add timestamps to all messages.
   local_viz_msg_.header.stamp = ros::Time::now();
   global_viz_msg_.header.stamp = ros::Time::now();
@@ -172,6 +181,13 @@ void Navigation::Run() {
   viz_pub_.publish(local_viz_msg_);
   viz_pub_.publish(global_viz_msg_);
   drive_pub_.publish(drive_msg_);
+
+  vel_array[0] = vel_array[1];
+  vel_array[1] = vel_array[2];
+  vel_array[2] = vel_array[3];
+  vel_array[3] = vel_array[4];
+  vel_array[4] = vel_array[5];
+  vel_array[5] = drive_msg_.velocity;
 }
 
 }  // namespace navigation

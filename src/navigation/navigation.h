@@ -7,7 +7,7 @@
 //  but WITHOUT ANY WARRANTY; without even the implied warranty of
 //  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 //  GNU Lesser General Public License for more details.
-//
+// 
 //  You should have received a copy of the GNU Lesser General Public License
 //  Version 3 in the file COPYING that came with this distribution.
 //  If not, see <http://www.gnu.org/licenses/>.
@@ -18,7 +18,7 @@
 \author  Joydeep Biswas, (C) 2019
 */
 //========================================================================
-
+ 
 #include <vector>
 
 #include "eigen3/Eigen/Dense"
@@ -75,10 +75,6 @@ class Navigation {
   Eigen::Vector2f robot_loc_;
   // Current robot orientation.
   float robot_angle_;
-  // Current robot location.
-  Eigen::Vector2f robot_start_loc_;
-  // Current robot orientation.
-  float robot_start_angle_;
   // Current robot velocity.
   Eigen::Vector2f robot_vel_;
   // Current robot angular speed.
@@ -86,12 +82,11 @@ class Navigation {
   // Odometry-reported robot location.
   Eigen::Vector2f odom_loc_;
   // Odometry-reported robot angle.
-  float odom_angle_;
+  float odom_angle_; 
   // Odometry-reported robot starting location.
   Eigen::Vector2f odom_start_loc_;
   // Odometry-reported robot starting angle.
   float odom_start_angle_;
-  // Odometry-reported
   // Latest observed point cloud.
   std::vector<Eigen::Vector2f> point_cloud_;
 
@@ -101,6 +96,25 @@ class Navigation {
   Eigen::Vector2f nav_goal_loc_;
   // Navigation goal angle.
   float nav_goal_angle_;
+  /*
+  struct tState {
+    float t;
+    float x;
+    float v;
+  };
+
+  std::array<tState,5> state;
+  */ 
+  float vel_array[6] = {0, 0, 0, 0, 0, 0};
+  // Custom functions and variables
+  float max_acc = 5.0;
+  float max_dec = 5.0;
+  float max_vel = 1.0;
+  float del_t = 0.05;
+  int act_lat = 4;
+  int sense_lat = 1;
+  std::tuple<Eigen::Vector2f, float> getRelativePose(const Eigen::Vector2f initPos, float initAngle, 
+    const Eigen::Vector2f endPos, float endAngle) const; 
 };
 
 }  // namespace navigation
