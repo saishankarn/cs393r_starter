@@ -60,6 +60,7 @@ using ros_helpers::SetRosVector;
 using std::string;
 using std::vector;
 using Eigen::Vector2f;
+using namespace std;
 
 // Create command line arguments
 DEFINE_string(laser_topic, "scan", "Name of ROS topic for LIDAR data");
@@ -84,7 +85,25 @@ void LaserCallback(const sensor_msgs::LaserScan& msg) {
   const Vector2f kLaserLoc(0.2, 0);
 
   static vector<Vector2f> point_cloud_;
+  /*
+  cout << "printing the laser message" << "\n";
+  cout << "minimum angle :   " << msg.angle_min << "\n";
+  cout << "maximum angle :   " << msg.angle_max << "\n";
+  cout << "angle increment:   " << msg.angle_increment << "\n";
+  cout << "time increment:   " << msg.time_increment << "\n";
+  cout << "scan time:   " << msg.scan_time << "\n";
+  cout << "minimum range :   " << msg.range_min << "\n";
+  cout << "maximum range:   " << msg.range_max << "\n";
+  cout << "num laser readings : " << msg.ranges.size() << "\n";
+  cout << "expected num laser readings : " << (msg.angle_max - msg.angle_min) / msg.angle_increment << "\n";
   // TODO Convert the LaserScan to a point cloud
+  */
+  for(int ranges_idx = 0; ranges_idx < int(msg.ranges.size()); ranges_idx++){
+    Vector2f v(0, 0);
+    v[0] = msg.ranges[ranges_idx] * cos(msg.angle_min + ranges_idx * msg.angle_increment);
+    v[1] = msg.ranges[ranges_idx] * sin(msg.angle_min + ranges_idx * msg.angle_increment);
+    point_cloud_.push_back(v + kLaserLoc);
+  }
   navigation_->ObservePointCloud(point_cloud_, msg.header.stamp.toSec());
   last_laser_msg_ = msg;
 }

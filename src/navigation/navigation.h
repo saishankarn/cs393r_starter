@@ -22,6 +22,7 @@
 #include <vector>
 
 #include "eigen3/Eigen/Dense"
+#include <math.h>
 
 #ifndef NAVIGATION_H
 #define NAVIGATION_H
@@ -64,6 +65,17 @@ class Navigation {
   void Run();
   // Used to set the next target pose.
   void SetNavGoal(const Eigen::Vector2f& loc, float angle);
+  // Controller function to determine the next time-step command velocity
+  float OneDtoc(float v0, float distRem);
+  // to transform poses 
+  std::tuple<Eigen::Vector2f, float> getRelativePose(const Eigen::Vector2f initPos, float initAngle, 
+    const Eigen::Vector2f endPos, float endAngle) const; 
+
+  float getMaxDistanceWithoutCollision(float curvature_of_turning);
+
+  Eigen::Vector2f transformAndEstimatePointCloud(float x, float y, float theta, Eigen::Vector2f pt);
+
+  void updateVelocityProfile(float last_vel);
 
  private:
 
@@ -96,25 +108,27 @@ class Navigation {
   Eigen::Vector2f nav_goal_loc_;
   // Navigation goal angle.
   float nav_goal_angle_;
-  /*
-  struct tState {
-    float t;
-    float x;
-    float v;
-  };
 
-  std::array<tState,5> state;
-  */ 
-  float vel_array[6] = {0, 0, 0, 0, 0, 0};
-  // Custom functions and variables
+  // kinematic variables
   float max_acc = 5.0;
   float max_dec = 5.0;
   float max_vel = 1.0;
   float del_t = 0.05;
-  int act_lat = 4;
-  int sense_lat = 1;
-  std::tuple<Eigen::Vector2f, float> getRelativePose(const Eigen::Vector2f initPos, float initAngle, 
-    const Eigen::Vector2f endPos, float endAngle) const; 
+  const static int act_lat = 3;
+  const static int sens_lat = 1;
+  const static int system_lat = act_lat + sens_lat;
+  float vel_profile[system_lat] = {0};
+  float vel_sum = 0;
+
+  // navigation variables
+  float length = 0.5;
+  float width = 0.26;
+  float wheel_base = 0.32;
+  float track = 0.16;
+  float margin = 1;
+
+  Eigen::Vector2f center_of_curve;
+
 };
 
 }  // namespace navigation

@@ -18,7 +18,6 @@
 \author  Joydeep Biswas, (C) 2019
 */
 //========================================================================
- 
 #include "gflags/gflags.h"
 #include "eigen3/Eigen/Dense"
 #include "eigen3/Eigen/Geometry"
@@ -50,6 +49,7 @@ VisualizationMsg global_viz_msg_;
 AckermannCurvatureDriveMsg drive_msg_;
 // Epsilon value for handling limited numerical precision.
 const float kEpsilon = 1e-5;
+const float kInf = 1e5;
 } //namespace
 
 namespace navigation {
@@ -62,8 +62,9 @@ Navigation::Navigation(const string& map_file, ros::NodeHandle* n) :
     robot_vel_(0, 0),
     robot_omega_(0),
     nav_complete_(true),
-    nav_goal_loc_(1.43, 0),
-    nav_goal_angle_(0){
+    nav_goal_loc_(5, 0),
+    nav_goal_angle_(0),
+    center_of_curve(0, 0){
   drive_pub_ = n->advertise<AckermannCurvatureDriveMsg>(
       "ackermann_curvature_drive", 1);
   viz_pub_ = n->advertise<VisualizationMsg>("visualization", 1);
@@ -83,7 +84,109 @@ std::tuple<Eigen::Vector2f, float> Navigation::getRelativePose(
   float angle = endAngle - initAngle;
 
   return std::make_tuple(pos, angle);
+}
+
+// Inputs:  Curvature of turning
+// Outputs: Distance remaining
+float Navigation::getMaxDistanceWithoutCollision(float curvature_of_turning) {
+  float smallest_distance;
+	// Handle case when point_cloud has no points
+	if (point_cloud_.size() == 0)
+		return 1; // Returning 1m. TODO : Find something better to do
+	
+	// Case-1 : Moving in an arc
+	if (fabs(curvature_of_turning) > kEpsilon) {
+		float radius_of_turning_nominal = fabs(1/curvature_of_turning);
+		float direction_of_turning = (signbit(curvature_of_turning) ?  -1 : 1); //1: left turn, -1: right turn
+		Eigen::Vector2f center_of_turning_left;
+		center_of_turning_left << 0, radius_of_turning_nominal;
+		
+		// Evaluate the minimum and maximum radius of the robot swept volume
+		float x_eval = radius_of_turning_nominal + 0.5*(width - track) + 0.5*track + margin;
+		float y_eval = 0.5*(length - wheel_base) + wheel_base + margin;
+		float radius_of_turning_max = sqrt(x_eval*x_eval + y_eval*y_eval);
+		float radius_of_turning_min = radius_of_turning_nominal - (0.5*(width - track) + 0.5*track + margin);
+		float X = 0.5*wheel_base + 0.5*length + margin;
+		float Y = 0.5*width + margin;
+		
+		float smallest_angular_distance = 17*M_PI/18; // TODO : Something better to avoid full circular motions
+
+    float rcs_theta_future = (vel_sum * del_t) / radius_of_turning_nominal;
+    float rcs_x_future = radius_of_turning_nominal * sin(rcs_theta_future);
+    float rcs_y_future = radius_of_turning_nominal * (1 - cos(rcs_theta_future));
+    
+		// Iterate over point cloud to find the closest point
+		for (unsigned int i = 0; i < point_cloud_.size(); i++) {
+			Eigen::Vector2f point_eval = transformAndEstimatePointCloud(rcs_x_future,
+      rcs_y_future, rcs_theta_future, point_cloud_[i]);
+			
+			// Make turning right have same equations as turning left 
+			point_eval.y() = direction_of_turning*point_eval.y();		
+			float radius_of_point_eval = (point_eval - center_of_turning_left).norm();
+			
+			// Check if there exists a possibility of collision with the robot
+			if (radius_of_point_eval <= radius_of_turning_max && radius_of_point_eval >= radius_of_turning_min) {
+				float beta_1 = kInf;
+				float beta_2 = kInf;
+				
+				if (fabs(X) <= radius_of_point_eval)
+					beta_1 = asin(X/radius_of_point_eval); // Returns a value between 0 and pi/2
+				if (fabs(radius_of_turning_nominal - Y) <= radius_of_point_eval)
+					beta_2 = acos((radius_of_turning_nominal - Y)/radius_of_point_eval); // Returns a value between 0 and pi/2
+				
+				float beta = fmin(beta_1, beta_2);
+				
+				if (beta != kInf) {
+					float alpha = atan2(point_eval.x(), radius_of_turning_nominal - point_eval.y());
+					if (alpha > 0) // Checks if the point is in front of the robot
+						smallest_angular_distance = fmin(smallest_angular_distance, alpha);
+				}
+			}
+		}
+		smallest_distance = radius_of_turning_nominal*smallest_angular_distance;
+	}
+		
+	// Case-2: Moving in a straight line
+	else { 
+		// TODO : Complete this code
+		smallest_distance = 0.5;
+	}
+	return smallest_distance;
+}
+
+float Navigation::OneDtoc(float v0, float distRem){
+  float v1 = 0;
+  if (distRem <= 0.0) {
+    v1 = 0.0;
+    return v1;
   }
+  else {
+    v1 = v0 + max_acc*del_t;
+    float del_s1 = v1*del_t + 0.5*v1*v1/max_dec;
+    float del_s2 = 0.5*v0*v0/max_dec;
+    if (v1 <= max_vel && del_s1 < distRem) {
+      return v1;
+      //std::cout << "Acceleration phase" << "\n";
+    }
+    else if (v0 <= max_vel && del_s2 < distRem) {
+      return v0;
+      //std::cout << "Cruise phase" << "\n";
+    }
+    else {
+      v1 = v0 - max_dec*del_t;
+      return v1;
+      //std::cout << "Deceleration phase" << "\n";
+    }
+  }
+}
+
+void Navigation::updateVelocityProfile(float last_vel){
+  for(int vel_idx = 0; vel_idx < system_lat-1; vel_idx++){
+    vel_profile[vel_idx] = vel_profile[vel_idx+1];  
+  }
+  vel_profile[system_lat-1] = last_vel;
+}
+
 
 void Navigation::SetNavGoal(const Vector2f& loc, float angle) {
 }
@@ -120,6 +223,19 @@ void Navigation::ObservePointCloud(const vector<Vector2f>& cloud,
 
 }
 
+Vector2f Navigation::transformAndEstimatePointCloud(float x, float y, float theta, Vector2f pt){
+  Eigen::Matrix3f T;
+  T << cos(theta), -sin(theta), x, 
+       sin(theta), cos(theta), y, 
+       0, 0, 1;
+  T = T.inverse();
+  Eigen::Vector3f pt3(pt[0], pt[1], 1);
+  pt3 = T*pt3;
+  return Vector2f(pt3[0], pt3[1]);
+}
+
+//vector<bool> Navigation::DetectCollisionPts(float curvature)
+
 void Navigation::Run() {
   // This function gets called 20 times a second to form the control loop.
   
@@ -130,50 +246,29 @@ void Navigation::Run() {
   // If odometry has not been initialized, we can't do anything.
   if (!odom_initialized_) return;
 
-  // The control iteration goes here. 
-  // Feel free to make helper functions to structure the control appropriately.
-  
-  // The latest observed point cloud is accessible via "point_cloud_"
-
-  // Eventually, you will have to set the control values to issue drive commands:
+  // get the location of the robot with respect to its initial reference frame
   Eigen::Vector2f relPos;
   float relAngle;
   std::tie(relPos, relAngle) = getRelativePose(odom_start_loc_, odom_start_angle_, odom_loc_, odom_angle_);
-  float distTrav = relPos.norm();
-  std::cout << "Printing ooooodometry ......" << '\n';
-  std::cout << odom_loc_ << '\n';
-  float v0 = robot_vel_.norm();
-  std::cout << "Robot velocity: "<< robot_vel_ << "\n";
-
-  float state = distTrav + (vel_array[2] + vel_array[3] + vel_array[4] + vel_array[5]) * del_t;
-  float distRem = nav_goal_loc_.norm() - state;
   
-  if (distRem <= 0.0) {
-    drive_msg_.velocity = 0.0;
-  }
-  else {
-    float v1 = v0 + max_acc*del_t;
-    float del_s1 = v1*del_t + 0.5*v1*v1/max_dec;
-    float del_s2 = 0.5*v0*v0/max_dec;
-    if (v1 <= max_vel && del_s1 < distRem) {
-      drive_msg_.velocity = v1;
-      std::cout << "Acceleration phase" << "\n";
-    }
-    else if (v0 <= max_vel && del_s2 < distRem) {
-      drive_msg_.velocity = v0;
-      std::cout << "Cruise phase" << "\n";
-    }
-    else {
-      drive_msg_.velocity = v0 - max_dec*del_t;
-      std::cout << "Deceleration phase" << "\n";
-    }
-  }
-  drive_msg_.curvature = 1/0.91;
-  std::cout << "Command velocity: "<<drive_msg_.velocity << "\n";
-  // drive_msg_.velocity = 0.1;
-  std::cout << "Distance traveled : " << distTrav << '\n';
-  std::cout << "State traveled : " << state << '\n';
-  // Add timestamps to all messages.
+  //adjust the distance traveled by taking into account the latency compensation
+  // float distTrav = relPos.norm();
+  // vel_sum = 0;
+  // for(int vel_idx = 0; vel_idx < system_lat; vel_idx++){
+  //   vel_sum += vel_profile[vel_idx];
+  // }
+  // float state = distTrav + (vel_sum) * del_t;
+  
+  drive_msg_.curvature = 0.2;
+  
+  float distRem = getMaxDistanceWithoutCollision(drive_msg_.curvature);// - state;
+  std::cout << "Distance remaining: " << distRem << "\n";
+
+
+  float v0 = vel_profile[system_lat - 1];
+  drive_msg_.velocity = OneDtoc(v0, distRem);
+  
+
   local_viz_msg_.header.stamp = ros::Time::now();
   global_viz_msg_.header.stamp = ros::Time::now();
   drive_msg_.header.stamp = ros::Time::now();
@@ -182,12 +277,10 @@ void Navigation::Run() {
   viz_pub_.publish(global_viz_msg_);
   drive_pub_.publish(drive_msg_);
 
-  vel_array[0] = vel_array[1];
-  vel_array[1] = vel_array[2];
-  vel_array[2] = vel_array[3];
-  vel_array[3] = vel_array[4];
-  vel_array[4] = vel_array[5];
-  vel_array[5] = drive_msg_.velocity;
+  updateVelocityProfile(drive_msg_.velocity);
+  //updateLaserProfile(point_cloud_);
+
+  
 }
 
 }  // namespace navigation
