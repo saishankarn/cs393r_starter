@@ -110,9 +110,9 @@ class Navigation {
   float nav_goal_angle_;
 
   // kinematic variables
-  float max_acc = 5.0/5;
-  float max_dec = 5.0/5;
-  float max_vel = 1.0/5;
+  float max_acc = 5.0;
+  float max_dec = 5.0;
+  float max_vel = 1.0;
   float del_t = 0.05;
   const static int act_lat = 3;
   const static int sens_lat = 1;

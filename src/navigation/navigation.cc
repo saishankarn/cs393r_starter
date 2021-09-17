@@ -273,10 +273,19 @@ void Navigation::Run() {
   // }
   // float state = distTrav + (vel_sum) * del_t;
   
-  drive_msg_.curvature = -0.1;
   Eigen::Vector2f closest_point;
-  float distRem = getMaxDistanceWithoutCollision(drive_msg_.curvature, closest_point);// - state;
-  std::cout << "Distance remaining: " << distRem << "\n";
+  float distRem = 0.0;
+
+  for (float curvature_eval = 0.9; curvature_eval >= -0.9; curvature_eval = curvature_eval - 0.2) {
+    float distRem_eval = getMaxDistanceWithoutCollision(curvature_eval, closest_point);
+    // std::cout << "Curvature: "<< curvature_eval << " Distance remaining: " << distRem_eval << "\n";
+
+    if (distRem_eval > distRem) {
+      drive_msg_.curvature = curvature_eval;
+      distRem = distRem_eval;
+    }
+  }
+  std::cout << "Chosen curvature:"<< drive_msg_.curvature << "Chosen distance remaining: " << distRem << "\n";
 
   float v0 = vel_profile[system_lat - 1];
   drive_msg_.velocity = OneDtoc(v0, distRem);
