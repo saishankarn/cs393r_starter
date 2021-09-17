@@ -83,6 +83,7 @@ void LaserCallback(const sensor_msgs::LaserScan& msg) {
   }
   // Location of the laser on the robot. Assumes the laser is forward-facing.
   const Vector2f kLaserLoc(0.2, 0);
+  // const Vector2f kLaserLoc(0.0, 0.0);
 
   static vector<Vector2f> point_cloud_;
   /*

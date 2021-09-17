@@ -71,7 +71,7 @@ class Navigation {
   std::tuple<Eigen::Vector2f, float> getRelativePose(const Eigen::Vector2f initPos, float initAngle, 
     const Eigen::Vector2f endPos, float endAngle) const; 
 
-  float getMaxDistanceWithoutCollision(float curvature_of_turning);
+  float getMaxDistanceWithoutCollision(float curvature_of_turning, Eigen::Vector2f& closest_point);
 
   Eigen::Vector2f transformAndEstimatePointCloud(float x, float y, float theta, Eigen::Vector2f pt);
 
@@ -110,9 +110,9 @@ class Navigation {
   float nav_goal_angle_;
 
   // kinematic variables
-  float max_acc = 5.0;
-  float max_dec = 5.0;
-  float max_vel = 1.0;
+  float max_acc = 5.0/5;
+  float max_dec = 5.0/5;
+  float max_vel = 1.0/5;
   float del_t = 0.05;
   const static int act_lat = 3;
   const static int sens_lat = 1;
@@ -124,8 +124,8 @@ class Navigation {
   float length = 0.5;
   float width = 0.26;
   float wheel_base = 0.32;
-  float track = 0.16;
-  float margin = 1;
+  float track_width = 0.16;
+  float safety_margin = 0.25;
 
   Eigen::Vector2f center_of_curve;
 

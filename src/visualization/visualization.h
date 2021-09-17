@@ -70,4 +70,11 @@ void DrawPathOption(const float curvature,
                     const float clearance,
                     amrl_msgs::VisualizationMsg& msg);
 
+void DrawRobotMargin(const float l,
+                     const float w,
+                     const float b,
+                     const float t,
+                     const float m,
+                     amrl_msgs::VisualizationMsg& msg);
+
 }  // namespace visualization

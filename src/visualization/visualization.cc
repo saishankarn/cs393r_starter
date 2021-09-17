@@ -138,4 +138,21 @@ void DrawPathOption(const float curvature,
   option.clearance = clearance;
   msg.path_options.push_back(option);
 }
+
+void DrawRobotMargin(const float l,
+                     const float w,
+                     const float b,
+                     const float t,
+                     const float m,
+                     amrl_msgs::VisualizationMsg& msg) {
+  Eigen::Vector2f p1(-(l-b)/2 - m,  (w/2 + m));
+  Eigen::Vector2f p2( (l+b)/2 + m,  (w/2 + m));
+  Eigen::Vector2f p3( (l+b)/2 + m, -(w/2 + m));                    
+  Eigen::Vector2f p4(-(l-b)/2 - m, -(w/2 + m));
+  DrawLine(p1, p2, 0x000000, msg);
+  DrawLine(p2, p3, 0x000000, msg);
+  DrawLine(p3, p4, 0x000000, msg);
+  DrawLine(p4, p1, 0x000000, msg);
+}
+
 }  // namespace visualization

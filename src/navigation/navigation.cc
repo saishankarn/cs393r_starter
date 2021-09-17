@@ -88,8 +88,9 @@ std::tuple<Eigen::Vector2f, float> Navigation::getRelativePose(
 
 // Inputs:  Curvature of turning
 // Outputs: Distance remaining
-float Navigation::getMaxDistanceWithoutCollision(float curvature_of_turning) {
+float Navigation::getMaxDistanceWithoutCollision(float curvature_of_turning, Eigen::Vector2f& closest_point) {
   float smallest_distance;
+  
 	// Handle case when point_cloud has no points
 	if (point_cloud_.size() == 0)
 		return 1; // Returning 1m. TODO : Find something better to do
@@ -98,23 +99,27 @@ float Navigation::getMaxDistanceWithoutCollision(float curvature_of_turning) {
 	if (fabs(curvature_of_turning) > kEpsilon) {
 		float radius_of_turning_nominal = fabs(1/curvature_of_turning);
 		float direction_of_turning = (signbit(curvature_of_turning) ?  -1 : 1); //1: left turn, -1: right turn
-		Eigen::Vector2f center_of_turning_left;
-		center_of_turning_left << 0, radius_of_turning_nominal;
+		Eigen::Vector2f center_of_turning_left(0, radius_of_turning_nominal);
 		
 		// Evaluate the minimum and maximum radius of the robot swept volume
-		float x_eval = radius_of_turning_nominal + 0.5*(width - track) + 0.5*track + margin;
-		float y_eval = 0.5*(length - wheel_base) + wheel_base + margin;
+		float x_eval = radius_of_turning_nominal + 0.5*(width - track_width) + 0.5*track_width + safety_margin;
+		float y_eval = 0.5*(length - wheel_base) + wheel_base + safety_margin;
 		float radius_of_turning_max = sqrt(x_eval*x_eval + y_eval*y_eval);
-		float radius_of_turning_min = radius_of_turning_nominal - (0.5*(width - track) + 0.5*track + margin);
-		float X = 0.5*wheel_base + 0.5*length + margin;
-		float Y = 0.5*width + margin;
+		float radius_of_turning_min = radius_of_turning_nominal - (0.5*(width - track_width) + 0.5*track_width + safety_margin);
+		float X = 0.5*wheel_base + 0.5*length + safety_margin;
+		float Y = 0.5*width + safety_margin;
 		
 		float smallest_angular_distance = 17*M_PI/18; // TODO : Something better to avoid full circular motions
 
-    float rcs_theta_future = (vel_sum * del_t) / radius_of_turning_nominal;
-    float rcs_x_future = radius_of_turning_nominal * sin(rcs_theta_future);
-    float rcs_y_future = radius_of_turning_nominal * (1 - cos(rcs_theta_future));
+    // To compensate for the latency
+    // float rcs_theta_future = (vel_sum * del_t) / radius_of_turning_nominal;
+    // float rcs_x_future = radius_of_turning_nominal * sin(rcs_theta_future);
+    // float rcs_y_future = radius_of_turning_nominal * (1 - cos(rcs_theta_future));
     
+    float rcs_theta_future = 0.0;
+    float rcs_x_future = 0.0;
+    float rcs_y_future = 0.0;
+
 		// Iterate over point cloud to find the closest point
 		for (unsigned int i = 0; i < point_cloud_.size(); i++) {
 			Eigen::Vector2f point_eval = transformAndEstimatePointCloud(rcs_x_future,
@@ -134,23 +139,32 @@ float Navigation::getMaxDistanceWithoutCollision(float curvature_of_turning) {
 				if (fabs(radius_of_turning_nominal - Y) <= radius_of_point_eval)
 					beta_2 = acos((radius_of_turning_nominal - Y)/radius_of_point_eval); // Returns a value between 0 and pi/2
 				
+        if (beta_2 <-1.0) 
+          std::cout<<"Beta2 is -pi/2"<<"\n";
 				float beta = fmin(beta_1, beta_2);
 				
 				if (beta != kInf) {
 					float alpha = atan2(point_eval.x(), radius_of_turning_nominal - point_eval.y());
-					if (alpha > 0) // Checks if the point is in front of the robot
-						smallest_angular_distance = fmin(smallest_angular_distance, alpha);
+          float angular_distance = alpha - beta;
+					if (angular_distance > 0) {// Checks if the point is in front of the robot 
+            if (angular_distance < smallest_angular_distance) {
+                closest_point = point_cloud_[i];
+                // std::cout<<"Closest Point Coordinates: "<<closest_point<<"\n";
+            }
+						smallest_angular_distance = fmin(smallest_angular_distance, angular_distance);
+          }
 				}
 			}
 		}
 		smallest_distance = radius_of_turning_nominal*smallest_angular_distance;
 	}
-		
+	
 	// Case-2: Moving in a straight line
 	else { 
 		// TODO : Complete this code
 		smallest_distance = 0.5;
 	}
+
 	return smallest_distance;
 }
 
@@ -259,19 +273,22 @@ void Navigation::Run() {
   // }
   // float state = distTrav + (vel_sum) * del_t;
   
-  drive_msg_.curvature = 0.2;
-  
-  float distRem = getMaxDistanceWithoutCollision(drive_msg_.curvature);// - state;
+  drive_msg_.curvature = -0.1;
+  Eigen::Vector2f closest_point;
+  float distRem = getMaxDistanceWithoutCollision(drive_msg_.curvature, closest_point);// - state;
   std::cout << "Distance remaining: " << distRem << "\n";
-
 
   float v0 = vel_profile[system_lat - 1];
   drive_msg_.velocity = OneDtoc(v0, distRem);
   
-
+  // Create visualizations.
   local_viz_msg_.header.stamp = ros::Time::now();
   global_viz_msg_.header.stamp = ros::Time::now();
   drive_msg_.header.stamp = ros::Time::now();
+
+  visualization::DrawCross(closest_point, 0.5, 0x000000, local_viz_msg_);
+  visualization::DrawRobotMargin(length, width, wheel_base, track_width, safety_margin, local_viz_msg_);
+
   // Publish messages.
   viz_pub_.publish(local_viz_msg_);
   viz_pub_.publish(global_viz_msg_);
