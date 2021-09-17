@@ -188,7 +188,9 @@ float Navigation::OneDtoc(float v0, float distRem){
     }
     else {
       v1 = v0 - max_dec*del_t;
+      v1 = std::max(v1, (float)0);
       return v1;
+      // return v1;
       //std::cout << "Deceleration phase" << "\n";
     }
   }
@@ -274,19 +276,23 @@ void Navigation::Run() {
   // float state = distTrav + (vel_sum) * del_t;
   
   Eigen::Vector2f closest_point;
+  Eigen::Vector2f closest_point_eval;
   float distRem = 0.0;
 
   for (float curvature_eval = 0.9; curvature_eval >= -0.9; curvature_eval = curvature_eval - 0.2) {
-    float distRem_eval = getMaxDistanceWithoutCollision(curvature_eval, closest_point);
-    // std::cout << "Curvature: "<< curvature_eval << " Distance remaining: " << distRem_eval << "\n";
+    float distRem_eval = getMaxDistanceWithoutCollision(curvature_eval, closest_point_eval);
+
+    
+    std::cout << "Curvature: "<< curvature_eval << " Distance remaining: " << distRem_eval << "\n";
 
     if (distRem_eval > distRem) {
+      closest_point = closest_point_eval;
       drive_msg_.curvature = curvature_eval;
       distRem = distRem_eval;
     }
   }
-  std::cout << "Chosen curvature:"<< drive_msg_.curvature << "Chosen distance remaining: " << distRem << "\n";
-
+  std::cout << "Chosen curvature: "<< drive_msg_.curvature << " Chosen distance remaining: " << distRem << "\n";
+  visualization::DrawArc({0, 1/drive_msg_.curvature}, fabs(1/drive_msg_.curvature),  -M_PI/2, -M_PI/2 + distRem*drive_msg_.curvature, 0xFFA500, local_viz_msg_);
   float v0 = vel_profile[system_lat - 1];
   drive_msg_.velocity = OneDtoc(v0, distRem);
   
@@ -295,15 +301,18 @@ void Navigation::Run() {
   global_viz_msg_.header.stamp = ros::Time::now();
   drive_msg_.header.stamp = ros::Time::now();
 
+  // visualization::DrawArc({0, 1}, fabs(1),  -M_PI/2, 0.0, 0xFFA500, local_viz_msg_);
+  // visualization::DrawPathOption(drive_msg_.curvature, distRem, 1, local_viz_msg_);
   visualization::DrawCross(closest_point, 0.5, 0x000000, local_viz_msg_);
   visualization::DrawRobotMargin(length, width, wheel_base, track_width, safety_margin, local_viz_msg_);
+
+  updateVelocityProfile(drive_msg_.velocity);
 
   // Publish messages.
   viz_pub_.publish(local_viz_msg_);
   viz_pub_.publish(global_viz_msg_);
   drive_pub_.publish(drive_msg_);
 
-  updateVelocityProfile(drive_msg_.velocity);
   //updateLaserProfile(point_cloud_);
 
   
