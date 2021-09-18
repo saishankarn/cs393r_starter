@@ -152,11 +152,9 @@ float Navigation::GetMaxDistanceWithoutCollision(float curvature_of_turning, Eig
             }
           }
 				}
-        else // assuming this case never happens. need to prove mathematically
-          ;
-			} // smallest_angular_distance is the previous computed value
-      else 
-      ;
+        else {;}// assuming this case never happens. need to prove mathematically
+			}
+      else {;}// smallest_angular_distance is the previous computed value
 		}
 		smallest_distance = radius_of_turning_nominal*smallest_angular_distance;
 	}
