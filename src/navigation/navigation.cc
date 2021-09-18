@@ -272,7 +272,7 @@ void Navigation::Run() {
   //   vel_sum += vel_profile[vel_idx];
   // }
   // float state = distTrav + (vel_sum) * del_t;
-  
+ 
   Eigen::Vector2f closest_point;
   float distRem = 0.0;
 
