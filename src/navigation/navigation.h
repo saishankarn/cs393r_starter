@@ -66,16 +66,16 @@ class Navigation {
   // Used to set the next target pose.
   void SetNavGoal(const Eigen::Vector2f& loc, float angle);
   // Controller function to determine the next time-step command velocity
-  float OneDtoc(float v0, float distRem);
+  float OneDTimeOptimalControl(float v0, float distRem);
   // to transform poses 
   std::tuple<Eigen::Vector2f, float> getRelativePose(const Eigen::Vector2f initPos, float initAngle, 
     const Eigen::Vector2f endPos, float endAngle) const; 
 
-  float getMaxDistanceWithoutCollision(float curvature_of_turning, Eigen::Vector2f& closest_point);
+  float GetMaxDistanceWithoutCollision(float curvature_of_turning, Eigen::Vector2f& closest_point);
 
-  Eigen::Vector2f transformAndEstimatePointCloud(float x, float y, float theta, Eigen::Vector2f pt);
+  Eigen::Vector2f TransformAndEstimatePointCloud(float x, float y, float theta, Eigen::Vector2f pt);
 
-  void updateVelocityProfile(float last_vel);
+  void UpdateVelocityProfile(float last_vel);
 
  private:
 

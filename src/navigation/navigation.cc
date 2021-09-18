@@ -88,7 +88,7 @@ std::tuple<Eigen::Vector2f, float> Navigation::getRelativePose(
 
 // Inputs:  Curvature of turning
 // Outputs: Distance remaining
-float Navigation::getMaxDistanceWithoutCollision(float curvature_of_turning, Eigen::Vector2f& closest_point) {
+float Navigation::GetMaxDistanceWithoutCollision(float curvature_of_turning, Eigen::Vector2f& collision_point) {
   float smallest_distance;
   
 	// Handle case when point_cloud has no points
@@ -122,7 +122,7 @@ float Navigation::getMaxDistanceWithoutCollision(float curvature_of_turning, Eig
 
 		// Iterate over point cloud to find the closest point
 		for (unsigned int i = 0; i < point_cloud_.size(); i++) {
-			Eigen::Vector2f point_eval = transformAndEstimatePointCloud(rcs_x_future,
+			Eigen::Vector2f point_eval = TransformAndEstimatePointCloud(rcs_x_future,
       rcs_y_future, rcs_theta_future, point_cloud_[i]);
 			
 			// Make turning right have same equations as turning left 
@@ -148,8 +148,8 @@ float Navigation::getMaxDistanceWithoutCollision(float curvature_of_turning, Eig
           float angular_distance = alpha - beta;
 					if (angular_distance > 0) {// Checks if the point is in front of the robot 
             if (angular_distance < smallest_angular_distance) {
-                closest_point = point_cloud_[i];
-                // std::cout<<"Closest Point Coordinates: "<<closest_point<<"\n";
+                collision_point = point_cloud_[i];
+                // std::cout<<"Closest Point Coordinates: "<<collision_point<<"\n";
             }
 						smallest_angular_distance = fmin(smallest_angular_distance, angular_distance);
           }
@@ -168,9 +168,9 @@ float Navigation::getMaxDistanceWithoutCollision(float curvature_of_turning, Eig
 	return smallest_distance;
 }
 
-float Navigation::OneDtoc(float v0, float distRem){
+float Navigation::OneDTimeOptimalControl(float v0, float distance_remaining){
   float v1 = 0;
-  if (distRem <= 0.0) {
+  if (distance_remaining <= 0.0) {
     v1 = 0.0;
     return v1;
   }
@@ -178,17 +178,17 @@ float Navigation::OneDtoc(float v0, float distRem){
     v1 = v0 + max_acc*del_t;
     float del_s1 = v1*del_t + 0.5*v1*v1/max_dec;
     float del_s2 = 0.5*v0*v0/max_dec;
-    if (v1 <= max_vel && del_s1 < distRem) {
+    if (v1 <= max_vel && del_s1 < distance_remaining) {
       return v1;
       //std::cout << "Acceleration phase" << "\n";
     }
-    else if (v0 <= max_vel && del_s2 < distRem) {
+    else if (v0 <= max_vel && del_s2 < distance_remaining) {
       return v0;
       //std::cout << "Cruise phase" << "\n";
     }
     else {
       v1 = v0 - max_dec*del_t;
-      v1 = std::max(v1, (float)0);
+      v1 = std::max(v1, (float )0);
       return v1;
       // return v1;
       //std::cout << "Deceleration phase" << "\n";
@@ -196,7 +196,7 @@ float Navigation::OneDtoc(float v0, float distRem){
   }
 }
 
-void Navigation::updateVelocityProfile(float last_vel){
+void Navigation::UpdateVelocityProfile(float last_vel){
   for(int vel_idx = 0; vel_idx < system_lat-1; vel_idx++){
     vel_profile[vel_idx] = vel_profile[vel_idx+1];  
   }
@@ -239,7 +239,7 @@ void Navigation::ObservePointCloud(const vector<Vector2f>& cloud,
 
 }
 
-Vector2f Navigation::transformAndEstimatePointCloud(float x, float y, float theta, Vector2f pt){
+Vector2f Navigation::TransformAndEstimatePointCloud(float x, float y, float theta, Vector2f pt){
   Eigen::Matrix3f T;
   T << cos(theta), -sin(theta), x, 
        sin(theta), cos(theta), y, 
@@ -262,51 +262,54 @@ void Navigation::Run() {
   // If odometry has not been initialized, we can't do anything.
   if (!odom_initialized_) return;
 
-  // get the location of the robot with respect to its initial reference frame
+  // Get the location of the robot with respect to its initial reference frame.
   Eigen::Vector2f relPos;
   float relAngle;
   std::tie(relPos, relAngle) = getRelativePose(odom_start_loc_, odom_start_angle_, odom_loc_, odom_angle_);
   
-  //adjust the distance traveled by taking into account the latency compensation
+  // Adjust the distance traveled by taking into account the latency compensation.
+  vel_sum = 0;
+  for(int vel_idx = 0; vel_idx < system_lat; vel_idx++){
+    vel_sum += vel_profile[vel_idx];
+  }
   // float distTrav = relPos.norm();
-  // vel_sum = 0;
-  // for(int vel_idx = 0; vel_idx < system_lat; vel_idx++){
-  //   vel_sum += vel_profile[vel_idx];
-  // }
   // float state = distTrav + (vel_sum) * del_t;
   
-  Eigen::Vector2f closest_point;
-  Eigen::Vector2f closest_point_eval;
-  float distRem = 0.0;
+  // Obstacle avoidance.
+  Eigen::Vector2f collision_point; // to visualize the first point of collision with an obstacle given a path
+  Eigen::Vector2f collision_point_candidate;
+  float distance_remaining = 0.0; // setting a minimum value of zero
 
-  for (float curvature_eval = 0.9; curvature_eval >= -0.9; curvature_eval = curvature_eval - 0.2) {
-    float distRem_eval = getMaxDistanceWithoutCollision(curvature_eval, closest_point_eval);
-
+  for (float curvature_candidate = 0.9; curvature_candidate >= -0.9; curvature_candidate = curvature_candidate - 0.2) {
+    float distance_remaining_candidate = GetMaxDistanceWithoutCollision(curvature_candidate, collision_point_candidate);
     
-    std::cout << "Curvature: "<< curvature_eval << " Distance remaining: " << distRem_eval << "\n";
-
-    if (distRem_eval > distRem) {
-      closest_point = closest_point_eval;
-      drive_msg_.curvature = curvature_eval;
-      distRem = distRem_eval;
+    std::cout << "Curvature: "<< curvature_candidate << " Distance remaining: " << distance_remaining_candidate << "\n";
+    
+    // Visualizing candidate arcs and correspoing distances
+    visualization::DrawPath(curvature_candidate, distance_remaining_candidate, 0xFFA500, local_viz_msg_);
+    // Choosing the arc/line with the best score
+    if (distance_remaining_candidate > distance_remaining) {
+      distance_remaining = distance_remaining_candidate;
+      collision_point = collision_point_candidate;
+      drive_msg_.curvature = curvature_candidate; // choosing curvature with best score
     }
   }
-  std::cout << "Chosen curvature: "<< drive_msg_.curvature << " Chosen distance remaining: " << distRem << "\n";
-  visualization::DrawArc({0, 1/drive_msg_.curvature}, fabs(1/drive_msg_.curvature),  -M_PI/2, -M_PI/2 + distRem*drive_msg_.curvature, 0xFFA500, local_viz_msg_);
+  std::cout << "Chosen curvature: "<< drive_msg_.curvature << " Chosen distance remaining: " << distance_remaining << "\n";
+  
+  // Time optimal control.
   float v0 = vel_profile[system_lat - 1];
-  drive_msg_.velocity = OneDtoc(v0, distRem);
+  drive_msg_.velocity = OneDTimeOptimalControl(v0, distance_remaining);
+  UpdateVelocityProfile(drive_msg_.velocity);
   
   // Create visualizations.
   local_viz_msg_.header.stamp = ros::Time::now();
   global_viz_msg_.header.stamp = ros::Time::now();
   drive_msg_.header.stamp = ros::Time::now();
-
-  // visualization::DrawArc({0, 1}, fabs(1),  -M_PI/2, 0.0, 0xFFA500, local_viz_msg_);
-  // visualization::DrawPathOption(drive_msg_.curvature, distRem, 1, local_viz_msg_);
-  visualization::DrawCross(closest_point, 0.5, 0x000000, local_viz_msg_);
   visualization::DrawRobotMargin(length, width, wheel_base, track_width, safety_margin, local_viz_msg_);
-
-  updateVelocityProfile(drive_msg_.velocity);
+  visualization::DrawArc({0, 1}, fabs(1),  -M_PI/2, 0.0, 0xFFA500, local_viz_msg_);
+  visualization::DrawCross(collision_point, 0.5, 0x000000, local_viz_msg_);
+  for (unsigned int i = 0; i < point_cloud_.size(); i = i + 20)
+    visualization::DrawCross(point_cloud_[i], 0.3, 0x000000, local_viz_msg_);
 
   // Publish messages.
   viz_pub_.publish(local_viz_msg_);

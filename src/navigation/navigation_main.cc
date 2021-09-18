@@ -85,7 +85,7 @@ void LaserCallback(const sensor_msgs::LaserScan& msg) {
   const Vector2f kLaserLoc(0.2, 0);
   // const Vector2f kLaserLoc(0.0, 0.0);
 
-  static vector<Vector2f> point_cloud_;
+  vector<Vector2f> point_cloud_;
   /*
   cout << "printing the laser message" << "\n";
   cout << "minimum angle :   " << msg.angle_min << "\n";

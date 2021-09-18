@@ -155,4 +155,21 @@ void DrawRobotMargin(const float l,
   DrawLine(p4, p1, 0x000000, msg);
 }
 
+  void DrawPath(float curvature, 
+                          float distance, 
+                          uint32_t color,
+                          amrl_msgs::VisualizationMsg& msg) {
+    if (fabs(curvature) > 1e-3) {
+      float direction_of_turning = (signbit(curvature) ?  -1 : 1); //1: left turn, -1: right turn
+      if (direction_of_turning > 0)
+        DrawArc({0, 1/curvature}, fabs(1/curvature), -M_PI/2, 
+                -M_PI/2 + distance*fabs(curvature), color, msg);
+      else
+        DrawArc({0, 1/curvature}, fabs(1/curvature), M_PI/2 - distance*fabs(curvature), 
+                M_PI/2, color, msg);
+    }
+    else 
+      DrawLine(Vector2f(0.0, 0.0), Vector2f(distance, 0.0), color, msg);
+  }
+
 }  // namespace visualization
