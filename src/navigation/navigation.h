@@ -110,8 +110,8 @@ class Navigation {
   float nav_goal_angle_;
 
   // kinematic variables 
-  float max_acc = 5.0;
-  float max_dec = 5.0;
+  float max_acc = 4.0;
+  float max_dec = 4.0;
   float max_vel = 1.0;
   float del_t = 0.05;
   const static int act_lat = 3;
@@ -121,8 +121,8 @@ class Navigation {
   float vel_sum = 0;
 
   // navigation variables
-  float length = 0.5;
-  float width = 0.26;
+  float length = 0.55;
+  float width = 0.3;
   float wheel_base = 0.32;
   float track_width = 0.16;
   float safety_margin = 0.05; 

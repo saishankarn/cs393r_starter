@@ -51,8 +51,8 @@ AckermannCurvatureDriveMsg drive_msg_;
 const float kEpsilon = 1e-5;
 const float kInf = 1e5;
 const float localGoal = 5.0;
-const float dtgWeight = -1.0;
-const float clWeight = 1.0;
+const float dtgWeight = -0.05;
+const float clWeight = 0.0;//200;
 } //namespace
 
 namespace navigation {
@@ -92,9 +92,9 @@ std::tuple<Eigen::Vector2f, float> Navigation::getRelativePose(
 // Inputs:  Curvature of turning
 // Outputs: Distance remaining
 std::tuple<float, float, float> Navigation::GetPathScoringParams(float curvature_of_turning, Eigen::Vector2f& collision_point) {
-  float freePathLength = 10.0;
+  float freePathLength = 5.0;
   float distanceToGoal = 5.0;
-  float clearance = 10.0;
+  float clearance = 5.0;
   
   // Handle case when point_cloud has no points
   if (point_cloud_.size() == 0)
@@ -115,16 +115,16 @@ std::tuple<float, float, float> Navigation::GetPathScoringParams(float curvature
     float Y = 0.5*width + safety_margin;
     
     float smallest_angular_distance = 17*M_PI/18; // TODO : Something better to avoid full circular motions
-    float alpha = 17*M_PI/18;
+    //float alpha_min = 17*M_PI/18;
 
     // To compensate for the latency
-    float rcs_theta_future = (vel_sum * del_t) / radius_of_turning_nominal;
-    float rcs_x_future = radius_of_turning_nominal * sin(rcs_theta_future);
-    float rcs_y_future = radius_of_turning_nominal * (1 - cos(rcs_theta_future));
+    //float rcs_theta_future = (vel_sum * del_t) / radius_of_turning_nominal;
+    //float rcs_x_future = radius_of_turning_nominal * sin(rcs_theta_future);
+    //float rcs_y_future = radius_of_turning_nominal * (1 - cos(rcs_theta_future));
     
-    // float rcs_theta_future = 0.0;
-    // float rcs_x_future = 0.0;
-    // float rcs_y_future = 0.0;
+    float rcs_theta_future = 0.0;
+    float rcs_x_future = 0.0;
+    float rcs_y_future = 0.0;
 
     // Finding the free path length.
     for (unsigned int i = 0; i < point_cloud_.size(); i++) {
@@ -149,12 +149,13 @@ std::tuple<float, float, float> Navigation::GetPathScoringParams(float curvature
         float beta = fmin(beta_1, beta_2);
         
         if (beta != kInf) {
-          alpha = atan2(point_candidate.x(), radius_of_turning_nominal - point_candidate.y());
+          float alpha = atan2(point_candidate.x(), radius_of_turning_nominal - point_candidate.y());
           float angular_distance = alpha - beta;
           if (angular_distance > 0) {// Checks if the point is in front of the robot 
             if (angular_distance < smallest_angular_distance) {
                 collision_point = point_cloud_[i]; // just for visualization
                 smallest_angular_distance = angular_distance;
+                //alpha_min = alpha;
             }
           }
         }
@@ -163,6 +164,7 @@ std::tuple<float, float, float> Navigation::GetPathScoringParams(float curvature
       else {;}// smallest_angular_distance is the previous computed value
     }
     freePathLength = radius_of_turning_nominal*smallest_angular_distance;
+    freePathLength = std::min(freePathLength, float(5.0));
 
     // Finding the clearance.
     for (unsigned int i = 0; i < point_cloud_.size(); i++) {// TODO : Alternate to iterating through the point cloud again
@@ -174,12 +176,14 @@ std::tuple<float, float, float> Navigation::GetPathScoringParams(float curvature
       float radius_of_point_candidate = (point_candidate - center_of_turning).norm();
 
       float point_candidate_angular_distance = atan2(point_candidate.x(), radius_of_turning_nominal - point_candidate.y());
-      if ((point_candidate_angular_distance < alpha) && (point_candidate_angular_distance > 0.0)) {
+      // std::cout << "alpha_min: " << alpha_min << "\n";
+      //if ((point_candidate_angular_distance < alpha_min) && (point_candidate_angular_distance > 0.0)) {
+      if (point_candidate_angular_distance > 0.0) {
         if (radius_of_turning_min - radius_of_point_candidate > 0.0) {
-          clearance = radius_of_turning_min - radius_of_point_candidate;
-          if (radius_of_point_candidate - radius_of_turning_max > 0.0) {
-            clearance = std::min(clearance, radius_of_point_candidate - radius_of_turning_max);
-          }
+          clearance = std::min(clearance, radius_of_turning_min - radius_of_point_candidate);
+        }
+        if (radius_of_point_candidate - radius_of_turning_max > 0.0) {
+          clearance = std::min(clearance, radius_of_point_candidate - radius_of_turning_max);
         }
       }
     }
@@ -308,8 +312,8 @@ void Navigation::Run() {
   Eigen::Vector2f collision_point_candidate;
   float distance_remaining = 0.0; // setting a minimum value of zero
   float best_score = -kInf;
-  
-  for (float curvature_candidate = 0.9; curvature_candidate >= -0.9; curvature_candidate = curvature_candidate - 0.2) {
+   
+  for (float curvature_candidate = 1.05; curvature_candidate >= -1.05; curvature_candidate = curvature_candidate - 0.1) {
     float freePathLengthCandidate;
     float distanceToGoalCandidate;
     float clearanceCandidate;
@@ -318,8 +322,10 @@ void Navigation::Run() {
     
     // Visualizing candidate arcs and correspoing distances
     visualization::DrawPath(curvature_candidate, freePathLengthCandidate, 0xFFA500, local_viz_msg_);
+    // float radius_of_turning_min = fabs(1/curvature_candidate) - (0.5*(width - track_width) + 0.5*track_width + safety_margin);
+    // visualization::DrawPathOption(curvature_candidate, radius_of_turning_min*freePathLengthCandidate, 0.5*width+safety_margin, local_viz_msg_);
     std::cout << "C: "<< curvature_candidate << ", FPL: " << freePathLengthCandidate << ", DTG: " 
-              << distanceToGoalCandidate << ", Cl: " << clearanceCandidate << ", S: " <<score << "\n";
+              << dtgWeight*distanceToGoalCandidate << ", Cl: " << clWeight*clearanceCandidate << ", S: " <<score << "\n";
 
     // Choosing the arc/line with the best score
     if (score > best_score) {
@@ -343,6 +349,7 @@ void Navigation::Run() {
   drive_msg_.header.stamp = ros::Time::now();
   visualization::DrawRobotMargin(length, width, wheel_base, track_width, safety_margin, local_viz_msg_);
   visualization::DrawCross(collision_point, 0.5, 0x000000, local_viz_msg_);
+  
 
   // Publish messages.
   viz_pub_.publish(local_viz_msg_);
