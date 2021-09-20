@@ -200,7 +200,7 @@ std::tuple<float, float, float> Navigation::GetPathScoringParams(float curvature
     freePathLength = 20.0;
     clearance = 10.0;
 
-    float SweptBound = width + safety_margin;
+    float sweptBound = width + safety_margin;
 
     float rcs_theta_future = 0;
     float rcs_x_future = vel_profile[0] * del_t;
@@ -210,8 +210,8 @@ std::tuple<float, float, float> Navigation::GetPathScoringParams(float curvature
       Eigen::Vector2f point_candidate = TransformAndEstimatePointCloud(rcs_x_future,
       rcs_y_future, rcs_theta_future, point_cloud_[i]);
 
-      if point_candidate.x() > 0{
-        if fabs(point_candidate.y()) < SweptBound){
+      if (point_candidate.x() > 0){
+        if (fabs(point_candidate.y()) < sweptBound){
         float pathLength = point_candidate.x();
         freePathLength = std::min(pathLength, freePathLength);
         }
