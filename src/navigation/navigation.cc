@@ -52,7 +52,7 @@ const float kEpsilon = 1e-5;
 const float kInf = 1e5;
 const float localGoal = 5.0;
 const float dtgWeight = -0.05;
-const float clWeight = 0.0;//200;
+const float clWeight = 50.0;//200;
 } //namespace
 
 namespace navigation {
@@ -118,13 +118,14 @@ std::tuple<float, float, float> Navigation::GetPathScoringParams(float curvature
     //float alpha_min = 17*M_PI/18;
 
     // To compensate for the latency
-    //float rcs_theta_future = (vel_sum * del_t) / radius_of_turning_nominal;
-    //float rcs_x_future = radius_of_turning_nominal * sin(rcs_theta_future);
-    //float rcs_y_future = radius_of_turning_nominal * (1 - cos(rcs_theta_future));
+    // To compensate for the sensing latency
+    float rcs_theta_future = (vel_profile[0] * del_t) / radius_of_turning_nominal;
+    float rcs_x_future = radius_of_turning_nominal * sin(rcs_theta_future);
+    float rcs_y_future = radius_of_turning_nominal * (1 - cos(rcs_theta_future));
     
-    float rcs_theta_future = 0.0;
-    float rcs_x_future = 0.0;
-    float rcs_y_future = 0.0;
+    //float rcs_theta_future = 0.0;
+    //float rcs_x_future = 0.0;
+    //float rcs_y_future = 0.0;
 
     // Finding the free path length.
     for (unsigned int i = 0; i < point_cloud_.size(); i++) {
@@ -178,7 +179,7 @@ std::tuple<float, float, float> Navigation::GetPathScoringParams(float curvature
       float point_candidate_angular_distance = atan2(point_candidate.x(), radius_of_turning_nominal - point_candidate.y());
       // std::cout << "alpha_min: " << alpha_min << "\n";
       //if ((point_candidate_angular_distance < alpha_min) && (point_candidate_angular_distance > 0.0)) {
-      if (point_candidate_angular_distance > 0.0) {
+      if (point_candidate_angular_distance > -M_PI/6) {
         if (radius_of_turning_min - radius_of_point_candidate > 0.0) {
           clearance = std::min(clearance, radius_of_turning_min - radius_of_point_candidate);
         }
@@ -340,6 +341,7 @@ void Navigation::Run() {
 
   // Time optimal control.
   float v0 = vel_profile[system_lat - 1];
+  distance_remaining = distance_remaining - (vel_sum) * del_t;
   drive_msg_.velocity = OneDTimeOptimalControl(v0, distance_remaining);
   UpdateVelocityProfile(drive_msg_.velocity);
   

@@ -112,7 +112,7 @@ class Navigation {
   // kinematic variables 
   float max_acc = 4.0;
   float max_dec = 4.0;
-  float max_vel = 1.0;
+  float max_vel = 2.0;
   float del_t = 0.05;
   const static int act_lat = 3;
   const static int sens_lat = 1;
