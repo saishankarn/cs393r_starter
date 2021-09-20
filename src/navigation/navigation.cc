@@ -197,9 +197,32 @@ std::tuple<float, float, float> Navigation::GetPathScoringParams(float curvature
   // Case-2: Moving in a straight line
   else { 
     // TODO : Complete this code
-    freePathLength = 0.0;
-    clearance = 0.0;
+    freePathLength = 20.0;
+    clearance = 10.0;
+
+    float SweptBound = width + safety_margin;
+
+    float rcs_theta_future = 0;
+    float rcs_x_future = vel_profile[0] * del_t;
+    float rcs_y_future = 0;
+
+    for (unsigned int i = 0; i < point_cloud_.size(); i++) {
+      Eigen::Vector2f point_candidate = TransformAndEstimatePointCloud(rcs_x_future,
+      rcs_y_future, rcs_theta_future, point_cloud_[i]);
+
+      if point_candidate.x() > 0{
+        if fabs(point_candidate.y()) < SweptBound){
+        float pathLength = point_candidate.x();
+        freePathLength = std::min(pathLength, freePathLength);
+        }
+        else{ 
+        clearance = std::min(clearance, fabs(point_candidate.y()));
+        }
+      }
+      distanceToGoal = localGoal - freePathLength;
+    }
   }
+
   return std::make_tuple(freePathLength, distanceToGoal, clearance);
 }
 
