@@ -200,7 +200,7 @@ std::tuple<float, float, float> Navigation::GetPathScoringParams(float curvature
     freePathLength = 20.0;
     clearance = 10.0;
 
-    float sweptBound = width + safety_margin;
+    float sweptBound = width / 2 + safety_margin;
 
     float rcs_theta_future = 0;
     float rcs_x_future = vel_profile[0] * del_t;
@@ -216,7 +216,7 @@ std::tuple<float, float, float> Navigation::GetPathScoringParams(float curvature
         freePathLength = std::min(pathLength, freePathLength);
         }
         else{ 
-        clearance = std::min(clearance, fabs(point_candidate.y()));
+        clearance = std::min(clearance, fabs(point_candidate.y()) - sweptBound);
         }
       }
       distanceToGoal = localGoal - freePathLength;
