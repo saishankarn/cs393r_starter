@@ -155,29 +155,30 @@ void ParticleFilter::ObserveLaser(const vector<float>& ranges,
   // Call the Update and Resample steps as necessary.
 }
 
-  std::tuple<Eigen::Vector2f, float> ParticleFilter::MotionModel(const Eigen::Vector2f& prevLoc,
-                                                                 const float prevAngle,
-                                                                 const Eigen::Vector2f& odomLoc,
-                                                                 const float odomAngle,
-                                                                 const Eigen::Vector2f& prevOdomLoc,
-                                                                 const float prevOdomAngle) {
-    Eigen::Rotation2Df rotOdom(-prevOdomAngle); // For transformation from Odometry to Base Link frame.
-    Eigen::Vector2f deltaLoc = rotOdom.toRotationMatrix()*(odomLoc - prevOdomLoc); // Translation in Base Link frame.
+std::tuple<Eigen::Vector2f, float> ParticleFilter::MotionModel(const Eigen::Vector2f& prevLoc,
+                                                                const float prevAngle,
+                                                                const Eigen::Vector2f& odomLoc,
+                                                                const float odomAngle,
+                                                                const Eigen::Vector2f& prevOdomLoc,
+                                                                const float prevOdomAngle) {
+  Eigen::Rotation2Df rotOdom(-prevOdomAngle); // For transformation from Odometry to Base Link frame.
+  Eigen::Vector2f deltaLoc = rotOdom.toRotationMatrix()*(odomLoc - prevOdomLoc); // Translation in Base Link frame.
 
-    Eigen::Rotation2Df rotBase(prevAngle); // For transformation from Base Link frame to Map frame.
-    Eigen::Vector2f loc = prevLoc + rotBase.toRotationMatrix()*deltaLoc; // Location in Map frame.
+  Eigen::Rotation2Df rotBase(prevAngle); // For transformation from Base Link frame to Map frame.
+  Eigen::Vector2f loc = prevLoc + rotBase.toRotationMatrix()*deltaLoc; // Location in Map frame.
 
-    float deltaAngle = odomAngle - prevOdomAngle; // Change in angle as measured by Odometry.
-    float angle = prevAngle + deltaAngle; // Angle in Map frame.
+  float deltaAngle = odomAngle - prevOdomAngle; // Change in angle as measured by Odometry.
+  float angle = prevAngle + deltaAngle; // Angle in Map frame.
 
-    // Add uncertainty to the prediction
+  // Add uncertainty to the prediction
 
 
-    return std::make_tuple(loc, angle);
-  }
+  return std::make_tuple(loc, angle);
+}
 
-void ParticleFilter::ObserveOdometry(const Vector2f& odom_loc,
-                                     const float odom_angle) {
+void ParticleFilter::Predict(const Vector2f& odom_loc,
+                             const float odom_angle) {
+  // Implement the predict step of the particle filter here.
   // A new odometry value is available (in the odom frame)
   // Implement the motion model predict step here, to propagate the particles
   // forward based on odometry.
@@ -212,6 +213,8 @@ void ParticleFilter::Initialize(const string& map_file,
   // was received from the log. Initialize the particles accordingly, e.g. with
   // some distribution around the provided location and angle. The location and 
   // angle are in the Map coordinate frame
+  // some distribution around the provided location and angle.
+  map_.Load(map_file);
   prev_map_loc = loc;
   prev_map_angle = angle;
 
@@ -222,8 +225,6 @@ void ParticleFilter::Initialize(const string& map_file,
     particle_generated.angle = rng_.Gaussian(angle, 2.0);
     particles_.push_back(particle_generated);
   }
-  
-  float x = rng_.Gaussian(0.0, 2.0);
   std::cout << "Map loc: " << loc << " and angle: " << angle << "\n";
 }
 
