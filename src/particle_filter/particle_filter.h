@@ -89,6 +89,14 @@ class ParticleFilter {
 
  private:
 
+  // Motion model of the robot.
+  std::tuple<Eigen::Vector2f, float> MotionModel(const Eigen::Vector2f& prevLoc,
+                                                 const float prevAngle,
+                                                 const Eigen::Vector2f& odomLoc,
+                                                 const float odomAngle,
+                                                 const Eigen::Vector2f& prevOdomLoc,
+                                                 const float prevOdomAngle);
+
   // List of particles being tracked.
   std::vector<Particle> particles_;
 
@@ -102,6 +110,10 @@ class ParticleFilter {
   Eigen::Vector2f prev_odom_loc_;
   float prev_odom_angle_;
   bool odom_initialized_;
+
+  // Previous map locations.
+  Eigen::Vector2f prev_map_loc_;
+  float prev_map_angle_;
 };
 }  // namespace slam
 

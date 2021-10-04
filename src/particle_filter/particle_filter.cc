@@ -55,7 +55,9 @@ config_reader::ConfigReader config_reader_({"config/particle_filter.lua"});
 ParticleFilter::ParticleFilter() :
     prev_odom_loc_(0, 0),
     prev_odom_angle_(0),
-    odom_initialized_(false) {}
+    odom_initialized_(false),
+    prev_map_loc_(0, 0),
+    prev_map_angle_(0) {}
 
 void ParticleFilter::GetParticles(vector<Particle>* particles) const {
   *particles = particles_;
@@ -153,19 +155,54 @@ void ParticleFilter::ObserveLaser(const vector<float>& ranges,
   // Call the Update and Resample steps as necessary.
 }
 
+  std::tuple<Eigen::Vector2f, float> ParticleFilter::MotionModel(const Eigen::Vector2f& prevLoc,
+                                                                 const float prevAngle,
+                                                                 const Eigen::Vector2f& odomLoc,
+                                                                 const float odomAngle,
+                                                                 const Eigen::Vector2f& prevOdomLoc,
+                                                                 const float prevOdomAngle) {
+    Eigen::Rotation2Df rotOdom(-prevOdomAngle); // For transformation from Odometry to Base Link frame.
+    Eigen::Vector2f deltaLoc = rotOdom.toRotationMatrix()*(odomLoc - prevOdomLoc); // Translation in Base Link frame.
+
+    Eigen::Rotation2Df rotBase(prevAngle); // For transformation from Base Link frame to Map frame.
+    Eigen::Vector2f loc = prevLoc + rotBase.toRotationMatrix()*deltaLoc; // Location in Map frame.
+
+    float deltaAngle = odomAngle - prevOdomAngle; // Change in angle as measured by Odometry.
+    float angle = prevAngle + deltaAngle; // Angle in Map frame.
+
+    // Add uncertainty to the prediction
+
+
+    return std::make_tuple(loc, angle);
+  }
+
 void ParticleFilter::ObserveOdometry(const Vector2f& odom_loc,
                                      const float odom_angle) {
   // A new odometry value is available (in the odom frame)
   // Implement the motion model predict step here, to propagate the particles
   // forward based on odometry.
+  
+  // For the first time instance, initialize the previous odometry values to the
+  // current values.
+  if (!odom_initialized_) {
+    prev_odom_angle_ = odom_angle;
+    prev_odom_loc_ = odom_loc;
+    odom_initialized_ = true;
+  }
+
+  std::cout << "Odometry loc: " << odom_loc << " and angle: " << odom_angle << "\n";
+  
 
 
   // You will need to use the Gaussian random number generator provided. For
   // example, to generate a random number from a Gaussian with mean 0, and
   // standard deviation 2:
-  float x = rng_.Gaussian(0.0, 2.0);
-  printf("Random number drawn from Gaussian distribution with 0 mean and "
-         "standard deviation of 2 : %f\n", x);
+  // float x = rng_.Gaussian(0.0, 2.0);
+  // printf("Random number drawn from Gaussian distribution with 0 mean and "
+        //  "standard deviation of 2 : %f\n", x);
+  
+  prev_odom_loc_ = odom_loc;
+  prev_odom_angle_ = odom_angle;
 }
 
 void ParticleFilter::Initialize(const string& map_file,
@@ -173,7 +210,21 @@ void ParticleFilter::Initialize(const string& map_file,
                                 const float angle) {
   // The "set_pose" button on the GUI was clicked, or an initialization message
   // was received from the log. Initialize the particles accordingly, e.g. with
-  // some distribution around the provided location and angle.
+  // some distribution around the provided location and angle. The location and 
+  // angle are in the Map coordinate frame
+  prev_map_loc = loc;
+  prev_map_angle = angle;
+
+  // Initializing particles around the initial location of the robot.
+  for (int i = 0; i < num_particles; i++) {
+    Particle particle_generated;
+    particle_generated.loc = Eigen::Vector2f(rng_.Gaussian(loc.x(), 2.0), rng_.Gaussian(loc.y(), 2.0));
+    particle_generated.angle = rng_.Gaussian(angle, 2.0);
+    particles_.push_back(particle_generated);
+  }
+  
+  float x = rng_.Gaussian(0.0, 2.0);
+  std::cout << "Map loc: " << loc << " and angle: " << angle << "\n";
 }
 
 void ParticleFilter::GetLocation(Eigen::Vector2f* loc_ptr, 
