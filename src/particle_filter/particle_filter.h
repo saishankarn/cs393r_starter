@@ -37,6 +37,7 @@ struct Particle {
   Eigen::Vector2f loc;
   float angle;
   double weight;
+  double belief;
 };
 
 class ParticleFilter {
@@ -114,7 +115,8 @@ class ParticleFilter {
   // Previous map locations.
   Eigen::Vector2f prev_map_loc_;
   float prev_map_angle_;
+
 };
-}  // namespace slam
+}  // namespace particle_filter
 
 #endif   // SRC_PARTICLE_FILTER_H_

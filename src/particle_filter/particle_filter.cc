@@ -46,7 +46,11 @@ using Eigen::Vector2f;
 using Eigen::Vector2i;
 using vector_map::VectorMap;
 
-DEFINE_double(num_particles, 50, "Number of particles");
+DEFINE_double(num_particles, 2, "Number of particles");
+DEFINE_double(std_k1, 0*0.05, "Translation dependence on translationnal motion model standard deviation");
+DEFINE_double(std_k2, 0*0.5*M_PI/180.0, "Rotation dependence on translational motion model standard deviation");
+DEFINE_double(std_k3, 0*0.05, "Translation dependence on rotational motion model standard deviation");
+DEFINE_double(std_k4, 0*0.5*M_PI/180.0, "Rotation dependence on rotational motion model standard deviation");
 
 namespace particle_filter {
 
@@ -93,11 +97,11 @@ void ParticleFilter::GetPredictedPointCloud(const Vector2f& loc,
     // You can create a new line segment instance as follows, for :
     line2f my_line(1, 2, 3, 4); // Line segment from (1,2) to (3.4).
     // Access the end points using `.p0` and `.p1` members:
-    printf("P0: %f, %f P1: %f,%f\n", 
-           my_line.p0.x(),
-           my_line.p0.y(),
-           my_line.p1.x(),
-           my_line.p1.y());
+    // printf("P0: %f, %f P1: %f,%f\n", 
+    //        my_line.p0.x(),
+    //        my_line.p0.y(),
+    //        my_line.p1.x(),
+    //        my_line.p1.y());
 
     // Check for intersections:
     bool intersects = map_line.Intersects(my_line);
@@ -106,11 +110,11 @@ void ParticleFilter::GetPredictedPointCloud(const Vector2f& loc,
     Vector2f intersection_point; // Return variable
     intersects = map_line.Intersection(my_line, &intersection_point);
     if (intersects) {
-      printf("Intersects at %f,%f\n", 
-             intersection_point.x(),
-             intersection_point.y());
+      // printf("Intersects at %f,%f\n", 
+            //  intersection_point.x(),
+            //  intersection_point.y());
     } else {
-      printf("No intersection\n");
+      // printf("No intersection\n");
     }
   }
 }
@@ -141,9 +145,9 @@ void ParticleFilter::Resample() {
 
   // You will need to use the uniform random number generator provided. For
   // example, to generate a random number between 0 and 1:
-  float x = rng_.UniformRandom(0, 1);
-  printf("Random number drawn from uniform distribution between 0 and 1: %f\n",
-         x);
+  // float x = rng_.UniformRandom(0, 1);
+  // printf("Random number drawn from uniform distribution between 0 and 1: %f\n",
+  //        x);
 }
 
 void ParticleFilter::ObserveLaser(const vector<float>& ranges,
@@ -170,8 +174,11 @@ std::tuple<Eigen::Vector2f, float> ParticleFilter::MotionModel(const Eigen::Vect
   float deltaAngle = odomAngle - prevOdomAngle; // Change in angle as measured by Odometry.
   float angle = prevAngle + deltaAngle; // Angle in Map frame.
 
-  // Add uncertainty to the prediction
-
+  // TODO : Implement different scaling of variance for axes x and y.
+  // Adding uncertainty to the prediction.
+  loc = loc + Eigen::Vector2f(rng_.Gaussian(0, FLAGS_std_k1*deltaLoc.norm() + FLAGS_std_k2*fabs(deltaAngle)), 
+                              rng_.Gaussian(0, FLAGS_std_k1*deltaLoc.norm() + FLAGS_std_k2*fabs(deltaAngle)));
+  angle = angle + rng_.Gaussian(0, FLAGS_std_k3*deltaLoc.norm() + FLAGS_std_k4*fabs(deltaAngle));
 
   return std::make_tuple(loc, angle);
 }
@@ -191,7 +198,18 @@ void ParticleFilter::Predict(const Vector2f& odom_loc,
     odom_initialized_ = true;
   }
 
-  std::cout << "Odometry loc: " << odom_loc << " and angle: " << odom_angle << "\n";
+  std::for_each(particles_.begin(), particles_.end(), [&](Particle &particle) {
+    Eigen::Vector2f loc;
+    float angle;
+    std::tie(loc, angle) = MotionModel(particle.loc, particle.angle,
+    odom_loc, odom_angle, prev_odom_loc_, prev_odom_angle_);
+    particle.loc = loc;
+    particle.angle = angle;
+    std::cout << "Particle loc: (" << particle.loc.x() <<", " << particle.loc.y() << ")"
+    << " and angle: " << particles_[0].angle << "\n";
+  });
+  
+  // std::cout << "Particle loc: " << particles_.size() << " and angle: " << particles_.size() << "\n";
   
 
 
@@ -215,17 +233,24 @@ void ParticleFilter::Initialize(const string& map_file,
   // angle are in the Map coordinate frame
   // some distribution around the provided location and angle.
   map_.Load(map_file);
-  prev_map_loc = loc;
-  prev_map_angle = angle;
+  prev_map_loc_ = loc;
+  prev_map_angle_ = angle;
 
   // Initializing particles around the initial location of the robot.
-  for (int i = 0; i < num_particles; i++) {
+  for (int i = 0; i < FLAGS_num_particles; i++) {
     Particle particle_generated;
-    particle_generated.loc = Eigen::Vector2f(rng_.Gaussian(loc.x(), 2.0), rng_.Gaussian(loc.y(), 2.0));
-    particle_generated.angle = rng_.Gaussian(angle, 2.0);
+
+    // Drawing the initial particles from a Gaussian. 95% of the particles are within 10cm and 1deg
+    // from the initial pose of the base link frame.
+    particle_generated.loc = Eigen::Vector2f(rng_.Gaussian(loc.x(), 0*0.05), rng_.Gaussian(loc.y(), 0*0.05));
+    particle_generated.angle = rng_.Gaussian(angle, 0*0.5*M_PI/180.0);
+    
+    // Initializing the observation likelihood (weights) and the belief
+    particle_generated.weight = 1.0;
+    particle_generated.belief = (double) 1/FLAGS_num_particles;
+    
     particles_.push_back(particle_generated);
   }
-  std::cout << "Map loc: " << loc << " and angle: " << angle << "\n";
 }
 
 void ParticleFilter::GetLocation(Eigen::Vector2f* loc_ptr, 
