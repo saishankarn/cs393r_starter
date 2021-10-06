@@ -68,55 +68,44 @@ void ParticleFilter::GetParticles(vector<Particle>* particles) const {
 }
 
 void ParticleFilter::GetPredictedPointCloud(const Vector2f& loc,
-                                            const float angle,
-                                            int num_ranges,
-                                            float range_min,
-                                            float range_max,
-                                            float angle_min,
-                                            float angle_max,
-                                            vector<Vector2f>* scan_ptr) {
-  vector<Vector2f>& scan = *scan_ptr;
-  // Compute what the predicted point cloud would be, if the car was at the pose
-  // loc, angle, with the sensor characteristics defined by the provided
-  // parameters.
-  // This is NOT the motion model predict step: it is the prediction of the
-  // expected observations, to be used for the update step.
-
-  // Note: The returned values must be set using the `scan` variable:
-  scan.resize(num_ranges);
-  // Fill in the entries of scan using array writes, e.g. scan[i] = ...
-  for (size_t i = 0; i < scan.size(); ++i) {
-    scan[i] = Vector2f(0, 0);
-  }
-
-  // The line segments in the map are stored in the `map_.lines` variable. You
-  // can iterate through them as:
-  for (size_t i = 0; i < map_.lines.size(); ++i) {
-    const line2f map_line = map_.lines[i];
-    // The line2f class has helper functions that will be useful.
-    // You can create a new line segment instance as follows, for :
-    line2f my_line(1, 2, 3, 4); // Line segment from (1,2) to (3.4).
-    // Access the end points using `.p0` and `.p1` members:
-    // printf("P0: %f, %f P1: %f,%f\n", 
-    //        my_line.p0.x(),
-    //        my_line.p0.y(),
-    //        my_line.p1.x(),
-    //        my_line.p1.y());
-
-    // Check for intersections:
-    bool intersects = map_line.Intersects(my_line);
-    // You can also simultaneously check for intersection, and return the point
-    // of intersection:
-    Vector2f intersection_point; // Return variable
-    intersects = map_line.Intersection(my_line, &intersection_point);
-    if (intersects) {
-      // printf("Intersects at %f,%f\n", 
-            //  intersection_point.x(),
-            //  intersection_point.y());
-    } else {
-      // printf("No intersection\n");
+    const float angle,
+    int num_ranges,
+    float range_min,
+    float range_max,
+    float angle_min,
+    float angle_max,
+    vector<Vector2f>* scan_ptr) {
+    vector<Vector2f>& scan = *scan_ptr;
+    // Compute what the predicted point cloud would be, if the car was at the pose
+    // loc, angle, with the sensor characteristics defined by the provided
+    // parameters.
+    // This is NOT the motion model predict step: it is the prediction of the
+    // expected observations, to be used for the update step.
+    float current_angle;
+    bool intersects;
+    // Note: The returned values must be set using the `scan` variable:
+    scan.resize(num_ranges);
+    // Fill in the entries of scan using array writes, e.g. scan[i] = ...
+    for (size_t i = 0; i < scan.size(); ++i) {
+        scan[i] = Vector2f(0, 0);
+        current_angle = angle_min + (i * (angle_max - angle_min)) / scan.size();
+        line2f scan_line(loc[0] + range_min * cos(current_angle), loc[1] + range_min * cos(current_angle),
+            loc[0] + range_max * cos(current_angle), loc[1] + range_max * cos(current_angle));
+        for (size_t i = 0; i < map_.lines.size(); ++i) {
+            const line2f map_line = map_.lines[i];
+            intersects = map_line.Intersects(scan_line);
+            Vector2f intersection_point; // Return variable
+            Vector2f end_of_line(loc[0] + range_max * cos(current_angle), loc[1] + range_max * cos(current_angle));
+            intersects = map_line.Intersection(my_line, &intersection_point);
+            if (intersects)
+            {
+                scan[i] = intersection_point;
+            }
+            else {
+                scan[i] = end_of_line
+            }
+        }
     }
-  }
 }
 
 void ParticleFilter::Update(const vector<float>& ranges,
