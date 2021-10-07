@@ -81,31 +81,53 @@ void ParticleFilter::GetPredictedPointCloud(const Vector2f& loc,
     // parameters.
     // This is NOT the motion model predict step: it is the prediction of the
     // expected observations, to be used for the update step.
-    float current_angle;
-    bool intersects;
     // Note: The returned values must be set using the `scan` variable:
     scan.resize(num_ranges);
     // Fill in the entries of scan using array writes, e.g. scan[i] = ...
     for (size_t i = 0; i < scan.size(); ++i) {
-        scan[i] = Vector2f(0, 0);
-        current_angle = angle_min + (i * (angle_max - angle_min)) / scan.size();
+        scan[i] = GetOnePoint(loc, angle, num_ranges, i, range_min, range_max, angle_min, angle_max); 
+    }
+}
+
+
+
+Vector2f ParticleFilter::GetOnePoint(const Vector2f& loc,
+    const float angle,
+    int num_ranges,
+    int range_index,
+    float range_min,
+    float range_max,
+    float angle_min,
+    float angle_max) {
+        float current_angle;
+        bool intersects;
+        float line_length;
+        float new_line_length;
+        Vector2f end_of_line;
+        Vector2f output_point;
+        output_point = Vector2f(0, 0);
+        current_angle = angle_min + (range_index * (angle_max - angle_min)) / num_ranges;
         line2f scan_line(loc[0] + range_min * cos(current_angle), loc[1] + range_min * cos(current_angle),
             loc[0] + range_max * cos(current_angle), loc[1] + range_max * cos(current_angle));
+        line_length = scan_line.Length();
         for (size_t i = 0; i < map_.lines.size(); ++i) {
             const line2f map_line = map_.lines[i];
             intersects = map_line.Intersects(scan_line);
             Vector2f intersection_point; // Return variable
-            Vector2f end_of_line(loc[0] + range_max * cos(current_angle), loc[1] + range_max * cos(current_angle));
-            intersects = map_line.Intersection(my_line, &intersection_point);
+            end_of_line(loc[0] + range_max * cos(current_angle), loc[1] + range_max * cos(current_angle));
+            intersects = map_line.Intersection(scan_line, &intersection_point);
             if (intersects)
             {
-                scan[i] = intersection_point;
+                line2f new_line(loc[0] + range_min * cos(current_angle), loc[1] + range_min * cos(current_angle),
+                    intersection_point.x(), intersection_point.y());
+                new_line_length = new_line.Length();
+                if (line_length > new_line_length) {
+                    line_length = new_line_length;
+                    end_of_line = intersection_point;
+                }
             }
-            else {
-                scan[i] = end_of_line
-            }
-        }
     }
+    return end_of_line;
 }
 
 void ParticleFilter::Update(const vector<float>& ranges,
@@ -113,12 +135,50 @@ void ParticleFilter::Update(const vector<float>& ranges,
                             float range_max,
                             float angle_min,
                             float angle_max,
+                            float d_short,
+                            float d_long,
+                            float sensor_min,
+                            float sensor_max,
+                            float sensor_std,
                             Particle* p_ptr) {
   // Implement the update step of the particle filter here.
   // You will have to use the `GetPredictedPointCloud` to predict the expected
   // observations for each particle, and assign weights to the particles based
   // on the observation likelihood computed by relating the observation to the
   // predicted point cloud.
+    Particle& p = *p_ptr;
+    Vector2f point_at_i; 
+    float distance_to_point;
+    float total_weight_update;
+    float weight_update_at_index;
+    // weights will always be log-liklihoods as opposed to real probabilities
+    total_weight_update = 0.0;
+    weight_update_at_index = 0.0;
+    for(size_t i = 0; i < ranges.size(); i+=1)
+    {
+        if(ranges[i] > sensor_max || ranges[i] < sensor_min)
+        {
+            continue;
+        }
+        else {
+        point_at_i = GetOnePoint(p.loc, p.angle, ranges.size(), i, range_min, range_max, angle_min, angle_max);
+        distance_to_point = point_at_i.norm();
+        }
+        if(ranges[i] > distance_to_point + d_long)
+        {
+            weight_update_at_index = - (pow(d_long, 2) / pow(sensor_std,2));
+        }
+        if(ranges[i] < distance_to_point - d_short)
+        {
+            weight_update_at_index = - (pow(d_short, 2) / pow(sensor_std,2));
+        }
+        else{
+            weight_update_at_index = - (pow(ranges[i] - distance_to_point, 2) / pow(sensor_std,2));
+        }
+        total_weight_update += weight_update_at_index;
+    }
+    p.weight = p.weight + total_weight_update;
+
 }
 
 void ParticleFilter::Resample() {
