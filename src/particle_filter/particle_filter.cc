@@ -21,6 +21,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <math.h>
 #include <iostream>
 #include "eigen3/Eigen/Dense"
 #include "eigen3/Eigen/Geometry"
@@ -46,11 +47,11 @@ using Eigen::Vector2f;
 using Eigen::Vector2i;
 using vector_map::VectorMap;
 
-DEFINE_double(num_particles, 2, "Number of particles");
-DEFINE_double(std_k1, 0.0, "Translation dependence on translational motion model standard deviation");//0.2
-DEFINE_double(std_k2, 0.0, "Rotation dependence on translational motion model standard deviation");
-DEFINE_double(std_k3, 0.0, "Translation dependence on rotational motion model standard deviation");//0.1
-DEFINE_double(std_k4, 1, "Rotation dependence on rotational motion model standard deviation");
+DEFINE_double(num_particles, 50, "Number of particles");
+DEFINE_double(std_k1, 0.2, "Translation dependence on translational motion model standard deviation");//0.2
+DEFINE_double(std_k2, 0.1, "Rotation dependence on translational motion model standard deviation");
+DEFINE_double(std_k3, 0.1, "Translation dependence on rotational motion model standard deviation");//0.1
+DEFINE_double(std_k4, 0.1, "Rotation dependence on rotational motion model standard deviation");// 0.1
 
 namespace particle_filter {
 
@@ -168,10 +169,16 @@ std::tuple<Eigen::Vector2f, float> ParticleFilter::MotionModel(const Eigen::Vect
   Eigen::Rotation2Df rotOdom(-prevOdomAngle); // For transformation from Odometry to Base Link frame.
   Eigen::Vector2f deltaLoc = rotOdom.toRotationMatrix()*(odomLoc - prevOdomLoc); // Translation in Base Link frame.
 
+
   Eigen::Rotation2Df rotBase(prevAngle); // For transformation from Base Link frame to Map frame.
   Eigen::Vector2f loc = prevLoc + rotBase.toRotationMatrix()*deltaLoc; // Location in Map frame.
 
   float deltaAngle = odomAngle - prevOdomAngle; // Change in angle as measured by Odometry.
+  
+  // Accounting for non-linear scale of angles
+  deltaAngle = (fabs(fabs(deltaAngle) - 2*M_PI) < fabs(deltaAngle)) ? 
+                signbit(deltaAngle)*(fabs(deltaAngle) -2*M_PI) : deltaAngle;
+
   float angle = prevAngle + deltaAngle; // Angle in Map frame.
 
   // TODO : Implement different scaling of variance for axes x and y.
@@ -179,9 +186,6 @@ std::tuple<Eigen::Vector2f, float> ParticleFilter::MotionModel(const Eigen::Vect
   loc = loc + Eigen::Vector2f(rng_.Gaussian(0, FLAGS_std_k1*deltaLoc.norm() + FLAGS_std_k2*fabs(deltaAngle)), 
                               rng_.Gaussian(0, FLAGS_std_k1*deltaLoc.norm() + FLAGS_std_k2*fabs(deltaAngle)));
   
-  // Accounting for non-linear scale of angles
-  delta_angle = (fabs(fabs(delta_angle) - 2_PI) < fabs(delta_angle)) ? 
-                signbit(delta_angle)*()
   angle = angle + rng_.Gaussian(0, FLAGS_std_k3*deltaLoc.norm() + FLAGS_std_k4*fabs(deltaAngle));
   std::cout << deltaAngle << "\n";
 

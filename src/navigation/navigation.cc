@@ -377,8 +377,8 @@ void Navigation::Run() {
   
 
   // Publish messages.
-  drive_msg_.velocity = 1;// over-writing the control action.
-  drive_msg_.curvature = 1;// over-writing the control action.
+  drive_msg_.velocity = 1.0;// over-writing the control action.
+  drive_msg_.curvature = 0.0;// over-writing the control action.
   viz_pub_.publish(local_viz_msg_);
   viz_pub_.publish(global_viz_msg_);
   drive_pub_.publish(drive_msg_);
