@@ -47,10 +47,11 @@ using Eigen::Vector2i;
 using vector_map::VectorMap;
 
 DEFINE_double(num_particles, 50, "Number of particles");
-DEFINE_double(std_k1, 0*0.05, "Translation dependence on translationnal motion model standard deviation");
-DEFINE_double(std_k2, 0*0.5*M_PI/180.0, "Rotation dependence on translational motion model standard deviation");
-DEFINE_double(std_k3, 0*0.05, "Translation dependence on rotational motion model standard deviation");
-DEFINE_double(std_k4, 0*0.5*M_PI/180.0, "Rotation dependence on rotational motion model standard deviation");
+DEFINE_double(std_k1, 0.2, "Translation dependence on translationnal motion model standard deviation");
+DEFINE_double(std_k2, 0.1, "Rotation dependence on translational motion model standard deviation");
+DEFINE_double(std_k3, 0.1, "Translation dependence on rotational motion model standard deviation");
+DEFINE_double(std_k4, 0.1, "Rotation dependence on rotational motion model standard deviation");
+
 
 DEFINE_double(d_long, 0, "D long");
 DEFINE_double(d_short, 0, "D short");
@@ -249,7 +250,12 @@ std::tuple<Eigen::Vector2f, float> ParticleFilter::MotionModel(const Eigen::Vect
   // Adding uncertainty to the prediction.
   loc = loc + Eigen::Vector2f(rng_.Gaussian(0, FLAGS_std_k1*deltaLoc.norm() + FLAGS_std_k2*fabs(deltaAngle)), 
                               rng_.Gaussian(0, FLAGS_std_k1*deltaLoc.norm() + FLAGS_std_k2*fabs(deltaAngle)));
+  
+  // Accounting for non-linear scale of angles
+  delta_angle = (fabs(fabs(delta_angle) - 2_PI) < fabs(delta_angle)) ? 
+                signbit(delta_angle)*()
   angle = angle + rng_.Gaussian(0, FLAGS_std_k3*deltaLoc.norm() + FLAGS_std_k4*fabs(deltaAngle));
+  std::cout << deltaAngle << "\n";
 
   return std::make_tuple(loc, angle);
 }
@@ -276,8 +282,8 @@ void ParticleFilter::Predict(const Vector2f& odom_loc,
     odom_loc, odom_angle, prev_odom_loc_, prev_odom_angle_);
     particle.loc = loc;
     particle.angle = angle;
-    std::cout << "Particle loc: (" << particle.loc.x() <<", " << particle.loc.y() << ")"
-    << " and angle: " << particles_[0].angle << "\n";
+    // std::cout << "Particle loc: (" << particle.loc.x() <<", " << particle.loc.y() << ")"
+    // << " and angle: " << particles_[0].angle << "\n";
   });
   
   // std::cout << "Particle loc: " << particles_.size() << " and angle: " << particles_.size() << "\n";
@@ -318,7 +324,6 @@ void ParticleFilter::Initialize(const string& map_file,
     
     // Initializing the observation likelihood (weights) and the belief
     particle_generated.weight = 1.0;
-    particle_generated.belief = (double) 1/FLAGS_num_particles;
     
     particles_.push_back(particle_generated);
   }
