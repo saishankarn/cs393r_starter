@@ -62,6 +62,7 @@ using Eigen::Vector2f;
 using visualization::ClearVisualizationMsg;
 using visualization::DrawArc;
 using visualization::DrawPoint;
+using visualization::DrawCross;
 using visualization::DrawLine;
 using visualization::DrawParticle;
 
@@ -108,7 +109,7 @@ void PublishParticles() {
 }
 
 void PublishPredictedScan() {
-  const uint32_t kColor = 0xd67d00;
+  const uint32_t kColor = 0x0000d6;
   Vector2f robot_loc(0, 0);
   float robot_angle(0);
   particle_filter_.GetLocation(&robot_loc, &robot_angle);
@@ -123,6 +124,7 @@ void PublishPredictedScan() {
       last_laser_msg_.angle_max,
       &predicted_scan);
   for (const Vector2f& p : predicted_scan) {
+    //cout << last_laser_msg_.range_min << " " << last_laser_msg_.range_max << " " << last_laser_msg_.angle_min << " " << last_laser_msg_.angle_max << '\n';
     DrawPoint(p, kColor, vis_msg_);
   }
 }
