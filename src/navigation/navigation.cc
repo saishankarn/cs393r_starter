@@ -345,11 +345,11 @@ void Navigation::Run() {
     float score = freePathLengthCandidate + dtgWeight * distanceToGoalCandidate + clWeight * clearanceCandidate;
     
     // Visualizing candidate arcs and correspoing distances
-    visualization::DrawPath(curvature_candidate, freePathLengthCandidate, 0xFFA500, local_viz_msg_);
+    // visualization::DrawPath(curvature_candidate, freePathLengthCandidate, 0xFFA500, local_viz_msg_);
     // float radius_of_turning_min = fabs(1/curvature_candidate) - (0.5*(width - track_width) + 0.5*track_width + safety_margin);
     // visualization::DrawPathOption(curvature_candidate, radius_of_turning_min*freePathLengthCandidate, 0.5*width+safety_margin, local_viz_msg_);
-    std::cout << "C: "<< curvature_candidate << ", FPL: " << freePathLengthCandidate << ", DTG: " 
-              << dtgWeight*distanceToGoalCandidate << ", Cl: " << clWeight*clearanceCandidate << ", S: " <<score << "\n";
+    // std::cout << "C: "<< curvature_candidate << ", FPL: " << freePathLengthCandidate << ", DTG: " 
+              // << dtgWeight*distanceToGoalCandidate << ", Cl: " << clWeight*clearanceCandidate << ", S: " <<score << "\n";
 
     // Choosing the arc/line with the best score
     if (score > best_score) {
@@ -360,7 +360,7 @@ void Navigation::Run() {
     }
   }
   
-  std::cout << "Chosen curvature: "<< drive_msg_.curvature << " Chosen distance remaining: " << distance_remaining << "\n";
+  // std::cout << "Chosen curvature: "<< drive_msg_.curvature << " Chosen distance remaining: " << distance_remaining << "\n";
 
   // Time optimal control.
   float v0 = vel_profile[system_lat - 1];
@@ -372,11 +372,13 @@ void Navigation::Run() {
   local_viz_msg_.header.stamp = ros::Time::now();
   global_viz_msg_.header.stamp = ros::Time::now();
   drive_msg_.header.stamp = ros::Time::now();
-  visualization::DrawRobotMargin(length, width, wheel_base, track_width, safety_margin, local_viz_msg_);
-  visualization::DrawCross(collision_point, 0.5, 0x000000, local_viz_msg_);
+  // visualization::DrawRobotMargin(length, width, wheel_base, track_width, safety_margin, local_viz_msg_);
+  // visualization::DrawCross(collision_point, 0.5, 0x000000, local_viz_msg_);
   
 
   // Publish messages.
+  drive_msg_.velocity = 1;// over-writing the control action.
+  drive_msg_.curvature = 1;// over-writing the control action.
   viz_pub_.publish(local_viz_msg_);
   viz_pub_.publish(global_viz_msg_);
   drive_pub_.publish(drive_msg_);

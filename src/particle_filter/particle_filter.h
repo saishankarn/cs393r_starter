@@ -88,6 +88,16 @@ class ParticleFilter {
                               float angle_max,
                               std::vector<Eigen::Vector2f>* scan);
 
+
+  Eigen::Vector2f GetOnePoint(const Eigen::Vector2f& loc,
+                                       const float angle,
+                                       int num_ranges,
+                                       int range_index,
+                                       float range_min,
+                                       float range_max,
+                                       float angle_min,
+                                       float angle_max); 
+
  private:
 
   // Motion model of the robot.
