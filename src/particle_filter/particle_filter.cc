@@ -139,6 +139,8 @@ void ParticleFilter::Update(const vector<float>& ranges,
 }*/
 
 
+
+
 void ParticleFilter::GetPredictedPointCloud(const Vector2f& loc,
     const float angle,
     int num_ranges,
@@ -179,7 +181,7 @@ Vector2f ParticleFilter::GetOnePoint(const Vector2f& loc,
   Vector2f output_point(0, 0);
   Vector2f lidar_loc(loc[0] + 0.2 * cos(angle), loc[1] + 0.2 * sin(angle));
   current_angle = angle + (angle_min + (range_index * (angle_max - angle_min)) / num_ranges);
-  cout << "lidar_loc : " << lidar_loc[0] << " " << lidar_loc[1] << " " << '\n';
+  //cout << "lidar_loc : " << lidar_loc[0] << " " << lidar_loc[1] << " " << '\n';
   line2f scan_line(lidar_loc[0] + range_min * cos(current_angle), lidar_loc[1] + range_min * sin(current_angle),
                    lidar_loc[0] + range_max * cos(current_angle), lidar_loc[1] + range_max * sin(current_angle));
   line_length = scan_line.Length();
@@ -205,6 +207,53 @@ Vector2f ParticleFilter::GetOnePoint(const Vector2f& loc,
 }
 
 
+void ParticleFilter::Update(const vector<float>& ranges,
+                            float range_min,
+                            float range_max,
+                            float angle_min,
+                            float angle_max,
+                            Particle* p_ptr) {
+  // Implement the update step of the particle filter here.
+  // You will have to use the `GetPredictedPointCloud` to predict the expected
+  // observations for each particle, and assign weights to the particles based
+  // on the observation likelihood computed by relating the observation to the
+  // predicted point cloud.
+
+  Vector2f point_at_i; 
+  float distance_to_point;
+  float total_weight_update;
+  float weight_update_at_index;
+  
+  // weights will always be log-liklihoods as opposed to real probabilities
+  total_weight_update = 0.0;
+  weight_update_at_index = 0.0;
+
+  for(size_t i = 0; i < ranges.size(); i+=1){
+    if(ranges[i] > range_max || ranges[i] < range_min){
+      continue;
+    }
+
+    point_at_i = GetOnePoint(p_ptr->loc, p_ptr->angle, ranges.size(), i, range_min, range_max, angle_min, angle_max);
+    distance_to_point = point_at_i.norm();
+    
+    if(ranges[i] > distance_to_point + FLAGS_d_long){
+      weight_update_at_index = - (pow(FLAGS_d_long, 2) / pow(FLAGS_sensor_std,2));
+    }
+    
+    else if(ranges[i] < distance_to_point - FLAGS_d_short){
+      weight_update_at_index = - (pow(FLAGS_d_short, 2) / pow(FLAGS_sensor_std,2));
+    }
+    
+    else{
+      weight_update_at_index = - (pow(ranges[i] - distance_to_point, 2) / pow(FLAGS_sensor_std,2));
+    }
+    total_weight_update += weight_update_at_index;
+  }
+  //p.weight = p.weight + total_weight_update;
+  p_ptr->weight = total_weight_update;
+}
+
+
 void ParticleFilter::Resample() {
   // Resample the particles, proportional to their weights.
   // The current particles are in the `particles_` variable. 
@@ -221,6 +270,31 @@ void ParticleFilter::Resample() {
   // float x = rng_.UniformRandom(0, 1);
   // printf("Random number drawn from uniform distribution between 0 and 1: %f\n",
   //        x);
+  vector<float> bins;
+  vector<Particle> new_particles_;
+
+  float sum_weights = 0;
+  for (Particle& p : particles_){
+    cout << sum_weights << '\n';
+    bins.push_back(sum_weights);
+    sum_weights = sum_weights + p.weight;   
+  }
+  cout << bins.size() << '\n';
+  for (size_t particle_idx = 0; particle_idx < FLAGS_num_particles; particle_idx++){
+    float x_bin = rng_.UniformRandom(0, 1);
+    
+    for (size_t bin_idx = 0; bin_idx < bins.size()-1; bin_idx++) {
+      if (bins[bin_idx] <= x_bin && x_bin <=bins[bin_idx+1]){
+        //cout << x_bin << " " << bins[bin_idx] << " " << bins[bin_idx+1] << '\n';
+        //Particle new_particle = particles_[particle_idx];
+        //new_particle.weight = 1.0;
+        //new_particles_.push_back(new_particle);
+      }    
+    } 
+       
+  }
+  particles_ = new_particles_;
+  
 }
 
 void ParticleFilter::ObserveLaser(const vector<float>& ranges,
@@ -230,6 +304,23 @@ void ParticleFilter::ObserveLaser(const vector<float>& ranges,
                                   float angle_max) {
   // A new laser scan observation is available (in the laser frame)
   // Call the Update and Resample steps as necessary.
+
+  // updating the weights of the particles
+  float sum_weights = 0.0;
+  for (size_t p_idx = 0; p_idx < FLAGS_num_particles; p_idx++){
+    Particle p = particles_[p_idx];
+    Update(ranges, range_min, range_max, angle_min, angle_max, &p);
+    sum_weights = sum_weights + p.weight;
+  }
+  /*
+  // normalising the weights of the particles
+  for (Particle& p : particles_){
+    p.weight = p.weight / sum_weights;   
+  }
+
+  // Resampling based on the updated weights
+  Resample();
+  */
 }
 
 std::tuple<Eigen::Vector2f, float> ParticleFilter::MotionModel(const Eigen::Vector2f& prevLoc,
