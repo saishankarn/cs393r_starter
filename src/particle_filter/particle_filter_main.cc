@@ -75,6 +75,8 @@ DEFINE_string(init_topic,
 
 DECLARE_int32(v);
 
+const int num_scans = 91;
+
 // Create config reader entries
 CONFIG_STRING(map_name_, "map");
 CONFIG_FLOAT(init_x_, "init_x");
@@ -117,7 +119,7 @@ void PublishPredictedScan() {
   particle_filter_.GetPredictedPointCloud(
       robot_loc,
       robot_angle,
-      last_laser_msg_.ranges.size(),
+      num_scans,
       last_laser_msg_.range_min,
       last_laser_msg_.range_max,
       last_laser_msg_.angle_min,

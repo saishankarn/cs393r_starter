@@ -53,10 +53,11 @@ DEFINE_double(std_k2, 0.1, "Rotation dependence on translational motion model st
 DEFINE_double(std_k3, 0.1, "Translation dependence on rotational motion model standard deviation");
 DEFINE_double(std_k4, 0.1, "Rotation dependence on rotational motion model standard deviation");
 
-
 DEFINE_double(d_long, 20, "D long");
 DEFINE_double(d_short, 5, "D short");
 DEFINE_double(sensor_std, 0.15, "standard deviation of sensor");
+
+const int num_scans = 91;
 
 namespace particle_filter {
 
@@ -169,7 +170,7 @@ void ParticleFilter::Update(const vector<float>& ranges,
     if(ranges[i] >= range_max || ranges[i] <= range_min){
       continue;
     }
-
+    cout << "num ranges in update " << ranges.size() << '\n';
     point_at_i = GetOnePoint(p_ptr->loc, p_ptr->angle, ranges.size(), i, range_min, range_max, angle_min, angle_max);
     distance_to_point = (point_at_i - robot_loc).norm();
 
@@ -209,7 +210,6 @@ void ParticleFilter::Resample() {
     sum_weights = sum_weights + p.weight;   
   }
   bins.push_back(sum_weights);
-  cout << sum_weights << '\n';
   
   if (particles_.size() != 0){
     for (int new_p_idx = 0; new_p_idx < FLAGS_num_particles; new_p_idx++){
@@ -234,12 +234,19 @@ void ParticleFilter::ObserveLaser(const vector<float>& ranges,
   // A new laser scan observation is available (in the laser frame)
   // Call the Update and Resample steps as necessary.
 
+  // downsampling the ranges vector 
+  vector<float> downsampled_ranges;
+  int skip_interval = (ranges.size() - 1) / (num_scans - 1);
+  for (size_t ds_idx = 0; ds_idx < num_scans; ds_idx++) {
+    int req_ds_idx = ds_idx * skip_interval;
+    downsampled_ranges.push_back(ranges[req_ds_idx]);
+  }
+
   // updating the weights of the particles
-  
   double sum_weights = 0.0;
   double max_weight = -1000000.0;
   for (Particle& p : particles_){
-    Update(ranges, range_min, range_max, angle_min, angle_max, &p);
+    Update(downsampled_ranges, range_min, range_max, angle_min, angle_max, &p);
     if (max_weight < p.weight){
       max_weight = p.weight;
     }
@@ -255,7 +262,7 @@ void ParticleFilter::ObserveLaser(const vector<float>& ranges,
     p.weight = p.weight / sum_weights;
   }
 
-  Resample();
+  //Resample();
 
 
 }
