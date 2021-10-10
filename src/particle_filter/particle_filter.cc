@@ -48,17 +48,17 @@ using Eigen::Vector2i;
 using vector_map::VectorMap;
 
 DEFINE_double(num_particles, 50, "Number of particles");
-DEFINE_double(std_k1, 0.2, "Translation dependence on translationnal motion model standard deviation");
+DEFINE_double(std_k1, 0.5, "Translation dependence on translationnal motion model standard deviation");
 DEFINE_double(std_k2, 0.1, "Rotation dependence on translational motion model standard deviation");
-DEFINE_double(std_k3, 0.1, "Translation dependence on rotational motion model standard deviation");
-DEFINE_double(std_k4, 0.1, "Rotation dependence on rotational motion model standard deviation");
+DEFINE_double(std_k3, 0.1, "Translation dependence on rotational motion model standard deviation");//0.1
+DEFINE_double(std_k4, 0.1, "Rotation dependence on rotational motion model standard deviation");//0.1
 //DEFINE_double(gamma_sensor, 0.1, "Independence factor");
 
-DEFINE_double(d_long, 20, "D long");
-DEFINE_double(d_short, 5, "D short");
-DEFINE_double(sensor_std, 0.15, "standard deviation of sensor");
+DEFINE_double(d_long, 15, "D long");
+DEFINE_double(d_short, 1, "D short");
+DEFINE_double(sensor_std, 0.3, "standard deviation of sensor");
 
-const int num_scans = 91;
+const int num_scans = 46;
 
 
 namespace particle_filter {
@@ -70,7 +70,8 @@ ParticleFilter::ParticleFilter() :
     prev_odom_angle_(0),
     odom_initialized_(false),
     prev_map_loc_(0, 0),
-    prev_map_angle_(0) {}
+    prev_map_angle_(0),
+    noPredictWOUpdate(0) {}
 
 void ParticleFilter::GetParticles(vector<Particle>* particles) const {
   *particles = particles_;
@@ -223,8 +224,8 @@ void ParticleFilter::Resample() {
           new_particles_.push_back(new_particle);
         }
       }
-      particles_ = new_particles_;
     }
+    particles_ = new_particles_;
   }
 }
 
@@ -244,6 +245,7 @@ void ParticleFilter::ObserveLaser(const vector<float>& ranges,
     downsampled_ranges.push_back(ranges[req_ds_idx]);
   }
 
+  if (noPredictWOUpdate > 1) {
   // updating the weights of the particles
   double sum_weights = 0.0;
   double max_weight = -1000000.0;
@@ -265,6 +267,9 @@ void ParticleFilter::ObserveLaser(const vector<float>& ranges,
   }
 
   Resample();
+
+  noPredictWOUpdate = 0;
+  }
 
 
 }
@@ -324,6 +329,7 @@ void ParticleFilter::Predict(const Vector2f& odom_loc,
     particle.angle = angle;
   });  
 
+  noPredictWOUpdate++;
 
   // You will need to use the Gaussian random number generator provided. For
   // example, to generate a random number from a Gaussian with mean 0, and

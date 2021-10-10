@@ -125,6 +125,9 @@ class ParticleFilter {
   Eigen::Vector2f prev_map_loc_;
   float prev_map_angle_;
 
+  // No. of predict without update/resample
+  size_t noPredictWOUpdate;
+
 };
 }  // namespace particle_filter
 
