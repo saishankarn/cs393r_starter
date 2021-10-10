@@ -52,12 +52,14 @@ DEFINE_double(std_k1, 0.2, "Translation dependence on translationnal motion mode
 DEFINE_double(std_k2, 0.1, "Rotation dependence on translational motion model standard deviation");
 DEFINE_double(std_k3, 0.1, "Translation dependence on rotational motion model standard deviation");
 DEFINE_double(std_k4, 0.1, "Rotation dependence on rotational motion model standard deviation");
+//DEFINE_double(gamma_sensor, 0.1, "Independence factor");
 
 DEFINE_double(d_long, 20, "D long");
 DEFINE_double(d_short, 5, "D short");
 DEFINE_double(sensor_std, 0.15, "standard deviation of sensor");
 
 const int num_scans = 91;
+
 
 namespace particle_filter {
 
@@ -158,9 +160,9 @@ void ParticleFilter::Update(const vector<float>& ranges,
   GetLocation(&robot_loc, &robot_angle);
 
   Vector2f point_at_i; 
-  float distance_to_point;
-  float total_weight_update;
-  float weight_update_at_index;
+  double distance_to_point;
+  double total_weight_update;
+  double weight_update_at_index;
   
   // weights will always be log-liklihoods as opposed to real probabilities
   total_weight_update = 0.0;
@@ -193,9 +195,9 @@ void ParticleFilter::Update(const vector<float>& ranges,
     }
     total_weight_update += weight_update_at_index;
   }
-  //cout << "total_weight_update : " << total_weight_update <<  "               " << exp(total_weight_update) << '\n';
+  //cout << "total_weight_update : " << total_weight_update <<  "               " << gamma_sensor << '\n';
   //p.weight = p.weight + total_weight_update;
-  p_ptr->weight = total_weight_update;
+  p_ptr->weight = 0.1 * total_weight_update;
 }
 
 
@@ -262,7 +264,7 @@ void ParticleFilter::ObserveLaser(const vector<float>& ranges,
     p.weight = p.weight / sum_weights;
   }
 
-  //Resample();
+  Resample();
 
 
 }
