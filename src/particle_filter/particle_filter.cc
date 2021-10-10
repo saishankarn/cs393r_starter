@@ -54,9 +54,9 @@ DEFINE_double(std_k3, 0.1, "Translation dependence on rotational motion model st
 DEFINE_double(std_k4, 0.1, "Rotation dependence on rotational motion model standard deviation");
 
 
-DEFINE_double(d_long, 0, "D long");
-DEFINE_double(d_short, 0, "D short");
-DEFINE_double(sensor_std, 0, "standard deviation of sensor");
+DEFINE_double(d_long, 20, "D long");
+DEFINE_double(d_short, 5, "D short");
+DEFINE_double(sensor_std, 0.15, "standard deviation of sensor");
 
 namespace particle_filter {
 
@@ -72,73 +72,6 @@ ParticleFilter::ParticleFilter() :
 void ParticleFilter::GetParticles(vector<Particle>* particles) const {
   *particles = particles_;
 }
-/*
-void ParticleFilter::GetPredictedPointCloud(const Vector2f& loc,
-                                            const float angle,
-                                            int num_ranges,
-                                            float range_min,
-                                            float range_max,
-                                            float angle_min,
-                                            float angle_max,
-                                            vector<Vector2f>* scan_ptr) {
-  vector<Vector2f>& scan = *scan_ptr;
-  // Compute what the predicted point cloud would be, if the car was at the pose
-  // loc, angle, with the sensor characteristics defined by the provided
-  // parameters.
-  // This is NOT the motion model predict step: it is the prediction of the
-  // expected observations, to be used for the update step.
-
-  // Note: The returned values must be set using the `scan` variable:
-  scan.resize(num_ranges);
-  // Fill in the entries of scan using array writes, e.g. scan[i] = ...
-  for (size_t i = 0; i < scan.size(); ++i) {
-    scan[i] = Vector2f(0, 0);
-  }
-
-  // The line segments in the map are stored in the `map_.lines` variable. You
-  // can iterate through them as:
-  for (size_t i = 0; i < map_.lines.size(); ++i) {
-    const line2f map_line = map_.lines[i];
-    // The line2f class has helper functions that will be useful.
-    // You can create a new line segment instance as follows, for :
-    line2f my_line(1, 2, 3, 4); // Line segment from (1,2) to (3.4).
-    // Access the end points using `.p0` and `.p1` members:
-    // printf("P0: %f, %f P1: %f,%f\n", 
-    //        my_line.p0.x(),
-    //        my_line.p0.y(),
-    //        my_line.p1.x(),
-    //        my_line.p1.y());
-
-    // Check for intersections:
-    bool intersects = map_line.Intersects(my_line);
-    // You can also simultaneously check for intersection, and return the point
-    // of intersection:
-    Vector2f intersection_point; // Return variable
-    intersects = map_line.Intersection(my_line, &intersection_point);
-    if (intersects) {
-      // printf("Intersects at %f,%f\n", 
-            //  intersection_point.x(),
-            //  intersection_point.y());
-    } else {
-      // printf("No intersection\n");
-    }
-  }
-}
-
-void ParticleFilter::Update(const vector<float>& ranges,
-                            float range_min,
-                            float range_max,
-                            float angle_min,
-                            float angle_max,
-                            Particle* p_ptr) {
-  // Implement the update step of the particle filter here.
-  // You will have to use the `GetPredictedPointCloud` to predict the expected
-  // observations for each particle, and assign weights to the particles based
-  // on the observation likelihood computed by relating the observation to the
-  // predicted point cloud.
-}*/
-
-
 
 
 void ParticleFilter::GetPredictedPointCloud(const Vector2f& loc,
@@ -219,6 +152,10 @@ void ParticleFilter::Update(const vector<float>& ranges,
   // on the observation likelihood computed by relating the observation to the
   // predicted point cloud.
 
+  Vector2f robot_loc(0, 0);
+  float robot_angle(0);
+  GetLocation(&robot_loc, &robot_angle);
+
   Vector2f point_at_i; 
   float distance_to_point;
   float total_weight_update;
@@ -229,72 +166,64 @@ void ParticleFilter::Update(const vector<float>& ranges,
   weight_update_at_index = 0.0;
 
   for(size_t i = 0; i < ranges.size(); i+=1){
-    if(ranges[i] > range_max || ranges[i] < range_min){
+    if(ranges[i] >= range_max || ranges[i] <= range_min){
       continue;
     }
 
     point_at_i = GetOnePoint(p_ptr->loc, p_ptr->angle, ranges.size(), i, range_min, range_max, angle_min, angle_max);
-    distance_to_point = point_at_i.norm();
+    distance_to_point = (point_at_i - robot_loc).norm();
+
+    //cout << "distance to point " << distance_to_point << '\n';
+    //cout << "range " << ranges[i] << '\n';
     
     if(ranges[i] > distance_to_point + FLAGS_d_long){
+      //cout << "here at dlong" << '\n';
       weight_update_at_index = - (pow(FLAGS_d_long, 2) / pow(FLAGS_sensor_std,2));
     }
     
     else if(ranges[i] < distance_to_point - FLAGS_d_short){
+      //cout << "here at dshort" << '\n';
       weight_update_at_index = - (pow(FLAGS_d_short, 2) / pow(FLAGS_sensor_std,2));
     }
     
     else{
+      //cout << "here at normal" << '\n';
       weight_update_at_index = - (pow(ranges[i] - distance_to_point, 2) / pow(FLAGS_sensor_std,2));
     }
     total_weight_update += weight_update_at_index;
   }
+  //cout << "total_weight_update : " << total_weight_update <<  "               " << exp(total_weight_update) << '\n';
   //p.weight = p.weight + total_weight_update;
   p_ptr->weight = total_weight_update;
 }
 
 
 void ParticleFilter::Resample() {
-  // Resample the particles, proportional to their weights.
-  // The current particles are in the `particles_` variable. 
-  // Create a variable to store the new particles, and when done, replace the
-  // old set of particles:
-  // vector<Particle> new_particles';
-  // During resampling: 
-  //    new_particles.push_back(...)
-  // After resampling:
-  // particles_ = new_particles;
 
-  // You will need to use the uniform random number generator provided. For
-  // example, to generate a random number between 0 and 1:
-  // float x = rng_.UniformRandom(0, 1);
-  // printf("Random number drawn from uniform distribution between 0 and 1: %f\n",
-  //        x);
   vector<float> bins;
   vector<Particle> new_particles_;
 
-  float sum_weights = 0;
+  double sum_weights = 0;
   for (Particle& p : particles_){
-    cout << sum_weights << '\n';
     bins.push_back(sum_weights);
     sum_weights = sum_weights + p.weight;   
   }
-  cout << bins.size() << '\n';
-  for (size_t particle_idx = 0; particle_idx < FLAGS_num_particles; particle_idx++){
-    float x_bin = rng_.UniformRandom(0, 1);
-    
-    for (size_t bin_idx = 0; bin_idx < bins.size()-1; bin_idx++) {
-      if (bins[bin_idx] <= x_bin && x_bin <=bins[bin_idx+1]){
-        //cout << x_bin << " " << bins[bin_idx] << " " << bins[bin_idx+1] << '\n';
-        //Particle new_particle = particles_[particle_idx];
-        //new_particle.weight = 1.0;
-        //new_particles_.push_back(new_particle);
-      }    
-    } 
-       
-  }
-  particles_ = new_particles_;
+  bins.push_back(sum_weights);
+  cout << sum_weights << '\n';
   
+  if (particles_.size() != 0){
+    for (int new_p_idx = 0; new_p_idx < FLAGS_num_particles; new_p_idx++){
+      float x_bin = rng_.UniformRandom(0, 1);    
+      for (size_t bin_idx = 0; bin_idx < bins.size(); bin_idx++) {
+        if (bins[bin_idx] <= x_bin && x_bin <=bins[bin_idx+1]){
+          Particle new_particle = particles_[bin_idx];
+          new_particle.weight = 1.0;
+          new_particles_.push_back(new_particle);
+        }
+      }
+      particles_ = new_particles_;
+    }
+  }
 }
 
 void ParticleFilter::ObserveLaser(const vector<float>& ranges,
@@ -306,21 +235,29 @@ void ParticleFilter::ObserveLaser(const vector<float>& ranges,
   // Call the Update and Resample steps as necessary.
 
   // updating the weights of the particles
-  float sum_weights = 0.0;
-  for (size_t p_idx = 0; p_idx < FLAGS_num_particles; p_idx++){
-    Particle p = particles_[p_idx];
+  
+  double sum_weights = 0.0;
+  double max_weight = -1000000.0;
+  for (Particle& p : particles_){
     Update(ranges, range_min, range_max, angle_min, angle_max, &p);
+    if (max_weight < p.weight){
+      max_weight = p.weight;
+    }
+  }
+  
+  for (Particle& p : particles_){
+    p.weight = p.weight - max_weight;
+    p.weight = exp(p.weight);
     sum_weights = sum_weights + p.weight;
   }
-  /*
-  // normalising the weights of the particles
+
   for (Particle& p : particles_){
-    p.weight = p.weight / sum_weights;   
+    p.weight = p.weight / sum_weights;
   }
 
-  // Resampling based on the updated weights
   Resample();
-  */
+
+
 }
 
 std::tuple<Eigen::Vector2f, float> ParticleFilter::MotionModel(const Eigen::Vector2f& prevLoc,
@@ -350,7 +287,6 @@ std::tuple<Eigen::Vector2f, float> ParticleFilter::MotionModel(const Eigen::Vect
                               rng_.Gaussian(0, FLAGS_std_k1*deltaLoc.norm() + FLAGS_std_k2*fabs(deltaAngle)));
   
   angle = angle + rng_.Gaussian(0, FLAGS_std_k3*deltaLoc.norm() + FLAGS_std_k4*fabs(deltaAngle));
-  std::cout << deltaAngle << "\n";
 
   return std::make_tuple(loc, angle);
 }
@@ -377,12 +313,7 @@ void ParticleFilter::Predict(const Vector2f& odom_loc,
     odom_loc, odom_angle, prev_odom_loc_, prev_odom_angle_);
     particle.loc = loc;
     particle.angle = angle;
-    // std::cout << "Particle loc: (" << particle.loc.x() <<", " << particle.loc.y() << ")"
-    // << " and angle: " << particles_[0].angle << "\n";
-  });
-  
-  // std::cout << "Particle loc: " << particles_.size() << " and angle: " << particles_.size() << "\n";
-  
+  });  
 
 
   // You will need to use the Gaussian random number generator provided. For
