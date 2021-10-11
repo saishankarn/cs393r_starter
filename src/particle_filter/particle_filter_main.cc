@@ -114,6 +114,8 @@ void PublishPredictedScan() {
   const uint32_t kColor = 0x0000d6;
   Vector2f robot_loc(0, 0);
   float robot_angle(0);
+  float angle_min = -45*M_PI/180;
+  float angle_max = 45*M_PI/180;
   particle_filter_.GetLocation(&robot_loc, &robot_angle);
   vector<Vector2f> predicted_scan;
   particle_filter_.GetPredictedPointCloud(
@@ -122,8 +124,8 @@ void PublishPredictedScan() {
       num_scans,
       last_laser_msg_.range_min,
       last_laser_msg_.range_max,
-      last_laser_msg_.angle_min,
-      last_laser_msg_.angle_max,
+      angle_min,
+      angle_max,
       &predicted_scan);
   for (const Vector2f& p : predicted_scan) {
     //cout << last_laser_msg_.range_min << " " << last_laser_msg_.range_max << " " << last_laser_msg_.angle_min << " " << last_laser_msg_.angle_max << '\n';
