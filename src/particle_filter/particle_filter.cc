@@ -50,15 +50,15 @@ using vector_map::VectorMap;
 DEFINE_double(num_particles, 50, "Number of particles");
 DEFINE_double(std_k1, 0.2, "Translation dependence on translationnal motion model standard deviation");
 DEFINE_double(std_k2, 0.2, "Rotation dependence on translational motion model standard deviation");
-DEFINE_double(std_k3, 0.1, "Translation dependence on rotational motion model standard deviation");//0.1
-DEFINE_double(std_k4, 0.3, "Rotation dependence on rotational motion model standard deviation");//0.1
+DEFINE_double(std_k3, 0.2, "Translation dependence on rotational motion model standard deviation");//0.1
+DEFINE_double(std_k4, 1, "Rotation dependence on rotational motion model standard deviation");//0.1
 //DEFINE_double(gamma_sensor, 0.1, "Independence factor");
 
-DEFINE_double(d_long, 10, "D long");//15
-DEFINE_double(d_short, 0, "D short");//1
+DEFINE_double(d_long, 1, "D long");//15
+DEFINE_double(d_short, 0.1, "D short");//1
 DEFINE_double(sensor_std, 0.3, "standard deviation of sensor");//0.3
 
-extern const size_t num_scans = 46;
+extern const size_t num_scans = 100;
 
 namespace particle_filter {
 
@@ -269,18 +269,18 @@ void ParticleFilter::ObserveLaser(const vector<float>& ranges,
   // Call the Update and Resample steps as necessary.
   
   // downsampling the ranges vector 
-  float mod_angle_min = -45*M_PI/180;
-  float mod_angle_max = 45*M_PI/180;
-  int skip_interval = 8;
+  float mod_angle_min = -60*M_PI/180;
+  float mod_angle_max = 60*M_PI/180;
 
   float angle_increment = (angle_max - angle_min) / ranges.size();
-  int ranges_bias_idx_min = int((mod_angle_min - angle_min) / angle_increment);
+  size_t skip_interval = (mod_angle_max - mod_angle_min)/num_scans/angle_increment;
+  std::cout << "skip interval: " << skip_interval;
+  size_t ranges_bias_idx_min = int((mod_angle_min - angle_min) / angle_increment);
+  size_t ranges_bias_idx_max = int((mod_angle_max - angle_min) / angle_increment);
   
   vector<float> downsampled_ranges;
-  for (size_t ds_idx = 0; ds_idx < num_scans; ds_idx++) {
-    int req_ds_idx = ranges_bias_idx_min + ds_idx * skip_interval;
+  for (size_t req_ds_idx = ranges_bias_idx_min; req_ds_idx < ranges_bias_idx_max; req_ds_idx = req_ds_idx + skip_interval)
     downsampled_ranges.push_back(ranges[req_ds_idx]);
-  }
 
   cout << "downsampled ranges size : " << downsampled_ranges.size() << '\n';
 
