@@ -54,12 +54,11 @@ DEFINE_double(std_k3, 0.1, "Translation dependence on rotational motion model st
 DEFINE_double(std_k4, 0.1, "Rotation dependence on rotational motion model standard deviation");//0.1
 //DEFINE_double(gamma_sensor, 0.1, "Independence factor");
 
-DEFINE_double(d_long, 15, "D long");
-DEFINE_double(d_short, 1, "D short");
-DEFINE_double(sensor_std, 0.3, "standard deviation of sensor");
+DEFINE_double(d_long, 15, "D long");//15
+DEFINE_double(d_short, 1, "D short");//1
+DEFINE_double(sensor_std, 0.3, "standard deviation of sensor");//0.3
 
-const int num_scans = 46;
-
+extern const size_t num_scans = 46;
 
 namespace particle_filter {
 
@@ -165,6 +164,11 @@ void ParticleFilter::Update(const vector<float>& ranges,
   double total_weight_update;
   double weight_update_at_index;
   
+  // Debug variables
+  size_t num_dlong = 0;
+  size_t num_dshort = 0;
+  size_t num_gauss = 0;
+
   // weights will always be log-liklihoods as opposed to real probabilities
   total_weight_update = 0.0;
   weight_update_at_index = 0.0;
@@ -173,7 +177,7 @@ void ParticleFilter::Update(const vector<float>& ranges,
     if(ranges[i] >= range_max || ranges[i] <= range_min){
       continue;
     }
-    cout << "num ranges in update " << ranges.size() << '\n';
+    // cout << "num ranges in update " << ranges.size() << '\n';
     point_at_i = GetOnePoint(p_ptr->loc, p_ptr->angle, ranges.size(), i, range_min, range_max, angle_min, angle_max);
     distance_to_point = (point_at_i - robot_loc).norm();
 
@@ -183,24 +187,29 @@ void ParticleFilter::Update(const vector<float>& ranges,
     if(ranges[i] > distance_to_point + FLAGS_d_long){
       //cout << "here at dlong" << '\n';
       weight_update_at_index = - (pow(FLAGS_d_long, 2) / pow(FLAGS_sensor_std,2));
+      num_dlong++;
     }
     
     else if(ranges[i] < distance_to_point - FLAGS_d_short){
       //cout << "here at dshort" << '\n';
       weight_update_at_index = - (pow(FLAGS_d_short, 2) / pow(FLAGS_sensor_std,2));
+      num_dshort++;
     }
     
     else{
       //cout << "here at normal" << '\n';
       weight_update_at_index = - (pow(ranges[i] - distance_to_point, 2) / pow(FLAGS_sensor_std,2));
+      num_gauss++;
     }
     total_weight_update += weight_update_at_index;
   }
   //cout << "total_weight_update : " << total_weight_update <<  "               " << gamma_sensor << '\n';
   //p.weight = p.weight + total_weight_update;
   p_ptr->weight = 0.1 * total_weight_update;
+  std::cout << "dlong: " << num_dlong << ", gauss: " << num_gauss << ", dshort: " << num_dshort << "\n";
 }
 
+// void ParticleFilter::PlotObservationLikelihoodContour(float delta, )
 
 void ParticleFilter::Resample() {
 
@@ -214,10 +223,11 @@ void ParticleFilter::Resample() {
   }
   bins.push_back(sum_weights);
   
+  // Vanilla resampling
   if (particles_.size() != 0){
     for (int new_p_idx = 0; new_p_idx < FLAGS_num_particles; new_p_idx++){
       float x_bin = rng_.UniformRandom(0, 1);    
-      for (size_t bin_idx = 0; bin_idx < bins.size(); bin_idx++) {
+      for (size_t bin_idx = 0; bin_idx < bins.size() - 1; bin_idx++) {
         if (bins[bin_idx] <= x_bin && x_bin <=bins[bin_idx+1]){
           Particle new_particle = particles_[bin_idx];
           new_particle.weight = 1.0;
@@ -227,7 +237,28 @@ void ParticleFilter::Resample() {
     }
     particles_ = new_particles_;
   }
+
+  // // Low variance resampling
+  // float x_bin = rng_.UniformRandom(0, 1);
+  // size_t bin_start = findBin(x_bin, &bins);
+  // Particle new_particle = particles_[bin_start];
+  // size_t bin_id = bin_start;
+  // while(bin_id < bin.size()) {
+    
+  // }
+
 }
+
+// size_t findBin(float x_bin, const std:vector<float>& bins) const{
+//   for (auto it = bins.begin(); it != bins.end(); ++it) {
+//     if (x_bin <= 0.0) 
+//       return 0;
+//     else if (x_bin <= *it)
+//       return std::distance(bins.begin(), it) - 1;
+//     else 
+//       return bin.size() - 1;
+//   }
+// }
 
 void ParticleFilter::ObserveLaser(const vector<float>& ranges,
                                   float range_min,
@@ -236,7 +267,8 @@ void ParticleFilter::ObserveLaser(const vector<float>& ranges,
                                   float angle_max) {
   // A new laser scan observation is available (in the laser frame)
   // Call the Update and Resample steps as necessary.
-
+  // angle_min = -45*M_PI/180;
+  // angle_max = 45*M_PI/180;
   // downsampling the ranges vector 
   vector<float> downsampled_ranges;
   int skip_interval = (ranges.size() - 1) / (num_scans - 1);
@@ -249,7 +281,10 @@ void ParticleFilter::ObserveLaser(const vector<float>& ranges,
   // updating the weights of the particles
   double sum_weights = 0.0;
   double max_weight = -1000000.0;
+  size_t i_debug = 0;
   for (Particle& p : particles_){
+    std::cout << "Particle number: " << i_debug << "\n"; 
+    i_debug++;
     Update(downsampled_ranges, range_min, range_max, angle_min, angle_max, &p);
     if (max_weight < p.weight){
       max_weight = p.weight;
@@ -360,8 +395,8 @@ void ParticleFilter::Initialize(const string& map_file,
 
     // Drawing the initial particles from a Gaussian. 95% of the particles are within 10cm and 1deg
     // from the initial pose of the base link frame.
-    particle_generated.loc = Eigen::Vector2f(rng_.Gaussian(loc.x(), 0*0.05), rng_.Gaussian(loc.y(), 0*0.05));
-    particle_generated.angle = rng_.Gaussian(angle, 0*0.5*M_PI/180.0);
+    particle_generated.loc = Eigen::Vector2f(rng_.Gaussian(loc.x(), 0.05), rng_.Gaussian(loc.y(), 0.05));
+    particle_generated.angle = rng_.Gaussian(angle, 0.5*M_PI/180.0);
     
     // Initializing the observation likelihood (weights) and the belief
     particle_generated.weight = 1.0;

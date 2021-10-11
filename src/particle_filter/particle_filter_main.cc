@@ -75,7 +75,7 @@ DEFINE_string(init_topic,
 
 DECLARE_int32(v);
 
-extern num_scans;
+extern size_t num_scans;
 
 // Create config reader entries
 CONFIG_STRING(map_name_, "map");
