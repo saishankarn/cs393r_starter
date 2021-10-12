@@ -49,9 +49,9 @@ using vector_map::VectorMap;
 
 DEFINE_double(num_particles, 50, "Number of particles");
 DEFINE_double(std_k1, 0.2, "Translation dependence on translationnal motion model standard deviation");
-DEFINE_double(std_k2, 0.2, "Rotation dependence on translational motion model standard deviation");
+DEFINE_double(std_k2, 0.4, "Rotation dependence on translational motion model standard deviation");
 DEFINE_double(std_k3, 0.2, "Translation dependence on rotational motion model standard deviation");//0.1
-DEFINE_double(std_k4, 1, "Rotation dependence on rotational motion model standard deviation");//0.1
+DEFINE_double(std_k4, 0.8, "Rotation dependence on rotational motion model standard deviation");//0.1
 //DEFINE_double(gamma_sensor, 0.1, "Independence factor");
 
 DEFINE_double(d_long, 1, "D long");//15
