@@ -393,6 +393,7 @@ void ParticleFilter::Initialize(const string& map_file,
   // angle are in the Map coordinate frame
   // some distribution around the provided location and angle.
   map_.Load(map_file);
+<<<<<<< HEAD
   prev_map_loc_ = loc;
   prev_map_angle_ = angle;
 
@@ -410,6 +411,8 @@ void ParticleFilter::Initialize(const string& map_file,
     
     particles_.push_back(particle_generated);
   }
+=======
+>>>>>>> 78c2ab8320c46c8c9c9d0afda31fde6807e4e74a
 }
 
 void ParticleFilter::GetLocation(Eigen::Vector2f* loc_ptr, 

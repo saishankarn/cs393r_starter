@@ -284,7 +284,10 @@ void Navigation::UpdateOdometry(const Vector2f& loc,
     odom_initialized_ = true;
     odom_loc_ = loc;
     odom_angle_ = angle;
+<<<<<<< HEAD
 
+=======
+>>>>>>> 78c2ab8320c46c8c9c9d0afda31fde6807e4e74a
     return;
   }
   odom_loc_ = loc;
