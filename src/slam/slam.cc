@@ -18,7 +18,7 @@
 \author  Joydeep Biswas, (C) 2019
 */
 //========================================================================
-
+ 
 #include <algorithm>
 #include <cmath>
 #include <iostream>
@@ -70,15 +70,60 @@ void SLAM::ObserveLaser(const vector<float>& ranges,
   // and save both the scan and the optimized pose.
 }
 
+
+
+std::tuple<Eigen::Vector2f, float> ParticleFilter::MotionModel(const Eigen::Vector2f& prevLoc,
+                                                                const float prevAngle,
+                                                                const Eigen::Vector2f& odomLoc,
+                                                                const float odomAngle,
+                                                                const Eigen::Vector2f& prevOdomLoc,
+                                                                const float prevOdomAngle) {
+  Eigen::Rotation2Df rotOdom(-prevOdomAngle); // For transformation from Odometry to Base Link frame.
+  Eigen::Vector2f deltaLoc = rotOdom.toRotationMatrix()*(odomLoc - prevOdomLoc); // Translation in Base Link frame.
+
+
+  Eigen::Rotation2Df rotBase(prevAngle); // For transformation from Base Link frame to Map frame.
+  Eigen::Vector2f loc = prevLoc + rotBase.toRotationMatrix()*deltaLoc; // Location in Map frame.
+
+  float deltaAngle = odomAngle - prevOdomAngle; // Change in angle as measured by Odometry.
+  
+  // Accounting for non-linear scale of angles
+  deltaAngle = (fabs(fabs(deltaAngle) - 2*M_PI) < fabs(deltaAngle)) ? 
+                signbit(deltaAngle)*(fabs(deltaAngle) -2*M_PI) : deltaAngle;
+
+  float angle = prevAngle + deltaAngle; // Angle in Map frame.
+
+  return std::make_tuple(loc, angle);
+}
+
 void SLAM::ObserveOdometry(const Vector2f& odom_loc, const float odom_angle) {
   if (!odom_initialized_) {
     prev_odom_angle_ = odom_angle;
     prev_odom_loc_ = odom_loc;
     odom_initialized_ = true;
+    robot_locs.push_back(Eigen::Vector2f(0.0, 0.0));
+    robot_angles.push_back(0.0);
     return;
   }
   // Keep track of odometry to estimate how far the robot has moved between 
   // poses.
+  
+  // obtaining the latest robot pose
+  Eigen::Vector2f latest_robot_loc = robot_locs.back();
+  float latest_robot_angle = robot_angles.back();
+
+  // obtaining the updated pose using motion model
+  std::tie(loc, angle) = MotionModel(latest_robot_loc, latest_robot_angle,
+    odom_loc, odom_angle, prev_odom_loc_, prev_odom_angle_);
+
+  // adding the updated pose to the robot trajectory
+  robot_locs.push_back(loc);
+  robot_angles.push_back(angle);
+
+  // updating the previous odometry values
+  prev_odom_loc_ = odom_loc;
+  prev_odom_angle_ = odom_angle;
+
 }
 
 vector<Vector2f> SLAM::GetMap() {

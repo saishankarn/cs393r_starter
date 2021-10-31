@@ -57,7 +57,20 @@ class SLAM {
   // Previous odometry-reported locations.
   Eigen::Vector2f prev_odom_loc_;
   float prev_odom_angle_;
-  bool odom_initialized_;
+  bool odom_initialized_; 
+
+  // custom slam variables 
+  std::vector<Eigen::Vector2f> robot_locs;
+  std::vector<float> robot_angles;
+  std::vector<>
+
+  // custom slam functions 
+  std::tuple<Eigen::Vector2f, float> MotionModel(const Eigen::Vector2f& prevLoc,
+                                                 const float prevAngle,
+                                                 const Eigen::Vector2f& odomLoc,
+                                                 const float odomAngle,
+                                                 const Eigen::Vector2f& prevOdomLoc,
+                                                 const float prevOdomAngle)
 };
 }  // namespace slam
 
