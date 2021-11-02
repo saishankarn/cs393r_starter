@@ -59,18 +59,36 @@ class SLAM {
   float prev_odom_angle_;
   bool odom_initialized_; 
 
+
   // custom slam variables 
   std::vector<Eigen::Vector2f> robot_locs;
   std::vector<float> robot_angles;
-  std::vector<>
+  std::vector<Eigen::MatrixXf> rasterized_costs;
 
   // custom slam functions 
+  void GetRasterizedCost(const std::vector<float>& ranges, 
+                         Eigen::MatrixXf& rasterized_cost,
+                         float range_min,
+                         float range_max,
+                         float angle_min,
+                         float angle_max);
+
+  void SaveRasterizedCostMap(Eigen::MatrixXf& rasterized_cost);
+
+  void GetObservationLikelihood(std::vector<float>& log_likelihood_list,
+                                Eigen::MatrixXf& rasterized_cost,
+                                std::vector<Eigen::Vector2f> point_cloud_,
+                                float range_min,
+                                float range_max,
+                                float angle_min,
+                                float angle_max);
+
   std::tuple<Eigen::Vector2f, float> MotionModel(const Eigen::Vector2f& prevLoc,
                                                  const float prevAngle,
                                                  const Eigen::Vector2f& odomLoc,
                                                  const float odomAngle,
                                                  const Eigen::Vector2f& prevOdomLoc,
-                                                 const float prevOdomAngle)
+                                                 const float prevOdomAngle);
 };
 }  // namespace slam
 

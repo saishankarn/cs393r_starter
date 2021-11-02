@@ -52,7 +52,7 @@
 
 using amrl_msgs::VisualizationMsg;
 using geometry::line2f;
-using geometry::Line;https://github.com/ut-amrl/cs393r_starter.git
+using geometry::Line;
 using math_util::DegToRad;
 using math_util::RadToDeg;
 using ros::Time;

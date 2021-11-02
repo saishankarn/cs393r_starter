@@ -410,6 +410,7 @@ void ParticleFilter::Initialize(const string& map_file,
     
     particles_.push_back(particle_generated);
   }
+
 }
 
 void ParticleFilter::GetLocation(Eigen::Vector2f* loc_ptr, 
