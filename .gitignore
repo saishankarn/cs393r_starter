@@ -2,4 +2,5 @@
 build
 bin
 lib
-data
+data/logged_data
+logged_data

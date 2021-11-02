@@ -28,6 +28,7 @@
 #include "glog/logging.h"
 #include "shared/math/geometry.h"
 #include "shared/math/math_util.h"
+#include "shared/math/statistics.h"
 #include "shared/util/timer.h"
 
 #include "slam.h"
@@ -48,6 +49,14 @@ using std::vector;
 using vector_map::VectorMap;
 
 namespace slam {
+
+DEFINE_double(gridDelX, 0.005, "5 cm");
+DEFINE_double(gridDelY, 0.005, "5 cm");
+DEFINE_double(gridDelQ, math_util::DegToRad(5.0), "5 deg");
+DEFINE_double(std_k1, 0.2, "Translation dependence on translation standard deviation");
+DEFINE_double(std_k2, 0.2, "Rotation dependence on translation standard deviation");
+DEFINE_double(std_k3, 0.2, "Translation dependence on rotation standard deviation");
+DEFINE_double(std_k4, 0.7, "Rotation dependence on rotation standard deviation");
 
 SLAM::SLAM() :
     prev_odom_loc_(0, 0),
@@ -70,9 +79,78 @@ void SLAM::ObserveLaser(const vector<float>& ranges,
   // and save both the scan and the optimized pose.
 }
 
+void SLAM:PopulateLikelihoodCube(const Eigen::Vector2f& currSLAMPoseOdomLoc,
+                                 const float& currSLAMPoseOdomAngle,
+                                 const Eigen::Vector2f& prevSLAMPoseOdomLoc,
+                                 const float& prevSLAMPoseOdomAngle) const {
+  // Defining the likelihood cube. The size of the cube depends on the magnitude
+  // of relative motion measured or more precisely the difference in the odometry
+  // readings between successive poses.
+  // The plausible relative transforms are assumed to be within 95%/ 2 sigma of the 
+  // gaussin centered at the relative odometry reading.
+  
+  Eigen::Vector2f relOdomLoc = currSLAMPoseOdomLoc - prevSLAMPoseOdomLoc;
+  float relOdomAngle = currSLAMPoseOdomAngle - prevSLAMPoseOdomAngle;
+  relOdomAngle = (fabs(fabs(relOdomAngle) - 2*M_PI) < fabs(relOdomAngle)) ? 
+                 signbit(relOdomAngle)*(fabs(relOdomAngle) -2*M_PI) : relOdomAngle;
+
+  float sigmaTrans = FLAGS_std_k1*relOdomLoc.norm() + FLAGS_std_k2*fabs(relOdomAngle);
+  float sigmaRot = FLAGS_std_k3*relOdomLoc.norm() + FLAGS_std_k4*fabs(relOdomAngle);
+
+  float numOfSigmas = 2;
+  int gridSizeX;
+  int gridSizeY;
+  int gridSizeQ;
+  std::remquo(numOfSigmas*sigmaTrans, FLAGS_gridDelX, &gridSizeX);
+  std::remquo(numOfSigmas*sigmaTrans, FLAGS_gridDelY, &gridSizeY);
+  std::remquo(numOfSigmas*sigmaRot, FLAGS_gridDelQ, &gridSizeQ);
+  gridSizeX = 2*gridSizeX + 1;
+  gridSizeY = 2*gridSizeY + 1;
+  gridSizeQ = 2*gridSizeQ + 1;
 
 
-std::tuple<Eigen::Vector2f, float> ParticleFilter::MotionModel(const Eigen::Vector2f& prevLoc,
+  float gridXMin = relOdomLoc.x() - ((gridSizeX - 1)/2)*FLAGS_gridDelX;
+  float gridYMin = relOdomLoc.y() - ((gridSizeY - 1)/2)*FLAGS_gridDelY;
+  float gridQMin = relOdomAngle - ((gridSizeX - 1)/2)*FLAGS_gridDelQ;
+
+  std::vector<Eigen::Matrix<float, gridSizeX, gridSizeY>> logLikelihoodCube;
+  Eigen::Matrix<float, gridSizeX, gridSizeY> logLikelihoodSquare;
+  float logLikelihoodMotionModel;
+  float logLikelihoodObservationModel;
+  float maxLogLikelihood;
+  std::vector<float> likelihoodMotionModelX;
+  std::vector<float> likelihoodMotionModelY;
+  float likelihoodMotionModelQ;
+  float max
+  for(int k = 0; k < gridSizeQ; k++) {
+    likelihoodMotionModelQ = 
+      statistics::ProbabilityDensityGaussian(gridQMin + k*FLAGS_gridDelX, relOdomAngle, sigmaRot);
+
+    for(int i = 0; i < gridSizeX; i++) {
+      if(k == 0) {
+        likelihoodMotionModelX.push_back(
+          statistics::ProbabilityDensityGaussian(gridXMin + i*FLAGS_gridDelX, relOdomLoc.x(), sigmaTrans)
+        );
+      }
+      for(int j = 0; j < gridSizeY; j++) {
+        if(k == 0 && i == 0) {
+          likelihoodMotionModelY.push_back( 
+            statistics::ProbabilityDensityGaussian(gridYMin + j*FLAGS_gridDelY, relOdomLoc.y(), sigmaTrans)
+          );
+        }
+        logLikelihoodMotionModel = std::log(likelihoodMotionModelQ*likelihoodMotionModelX[i]*likelihoodMotionModelX[j]);
+        logLikelihoodSquare[i, j] = logLikelihoodMotionModel;//+ logLikelihoodObservationModel;
+        if(k == 0 && i == 0 && j == 0)
+          maxLogLikelihood = logLikelihoodSquare[i, j];
+        else 
+          maxLogLikelihood = std::max(maxLogLikelihood, logLikelihoodSquare[i, j]);
+      } 
+    }
+  logLikelihoodCube.push_back(logLikelihoodSquare);
+  }
+}
+
+std::tuple<Eigen::Vector2f, float> SLAM::DifferentialMotionModel(const Eigen::Vector2f& prevLoc,
                                                                 const float prevAngle,
                                                                 const Eigen::Vector2f& odomLoc,
                                                                 const float odomAngle,
