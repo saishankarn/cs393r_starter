@@ -35,8 +35,8 @@
 
 #include "vector_map/vector_map.h"
 
-#include<opencv2/highgui/highgui.hpp>
-#include <opencv2/core/eigen.hpp>
+//#include<opencv2/highgui/highgui.hpp>
+//#include <opencv2/core/eigen.hpp>
 
 using namespace math_util;
 using Eigen::Affine2f;
@@ -72,7 +72,7 @@ void SLAM::SaveRasterizedCostMap(Eigen::MatrixXf& rasterized_cost){
   //cout << "the minimum value is : " << "  " << rasterized_cost.minCoeff();
   //cout << "the maximum value is : " << "  " << rasterized_cost.maxCoeff();
   //cv::Mat mat(600,600,CV_32FC1);
-  cv::Mat mat = cv::Mat(600, 600, CV_32F);
+  //cv::Mat mat = cv::Mat(600, 600, CV_32F);
   //cout << mat;
   //Eigen::Map<MatrixXf> rasterized_cost(mat.data());
 }
