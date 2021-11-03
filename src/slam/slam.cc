@@ -88,7 +88,7 @@ float SLAM::GetObservationLikelihood(Eigen::MatrixXf& rasterized_cost,
                                     float angle_min,
                                     float angle_max){
   // returns the observation likelihood scores of a given point_cloud_ using the rasterized_cost
-  float obs_log_likelihood = 0.0
+  float obs_log_likelihood = 0.0;
   int dim = int(2 * range_max / FLAGS_map_resolution); // 600
   for(int pc_idx = 0; pc_idx < int(point_cloud_.size()); pc_idx++){
     Vector2f pt = point_cloud_[pc_idx];
@@ -103,16 +103,14 @@ float SLAM::GetObservationLikelihood(Eigen::MatrixXf& rasterized_cost,
   return obs_log_likelihood;
 }
 
-Eigen::MatrixXf SLAM::GetRasterizedCost(const vector<float>& ranges,
-                             float range_min,
-                             float range_max,
-                             float angle_min,
-                             float angle_max){
-  // Takes lidar scan as input and returns the cost array as ouput 
-  
-  // 1. convert the lidar scan from ranges to (x, y) coordinates 
+std::vector<Vector2f> SLAM::GetPointCloud(const vector<float>& ranges,
+                                    float range_min,
+                                    float range_max,
+                                    float angle_min,
+                                    float angle_max){
+  // converts the lidar range scans to point cloud (x, y) format
   const Vector2f kLaserLoc(0.2, 0);
-  vector<Vector2f> point_cloud_;
+  std::vector<Vector2f> point_cloud_;
   float angle_increment = (angle_max - angle_min) / ranges.size();
   for(int ranges_idx = 0; ranges_idx < int(ranges.size()); ranges_idx++){
     Vector2f v(0, 0);
@@ -120,6 +118,18 @@ Eigen::MatrixXf SLAM::GetRasterizedCost(const vector<float>& ranges,
     v[1] = ranges[ranges_idx] * sin(angle_min + ranges_idx * angle_increment);
     point_cloud_.push_back(v + kLaserLoc);
   }
+  return point_cloud_;
+}
+
+Eigen::MatrixXf SLAM::GetRasterizedCost(const std::vector<float>& ranges,
+                                        float range_min,
+                                        float range_max,
+                                        float angle_min,
+                                        float angle_max){
+  // Takes lidar scan as input and returns the cost array as ouput 
+  
+  // 1. convert the lidar scan from ranges to (x, y) coordinates 
+  std::vector<Vector2f> point_cloud_ = GetPointCloud(ranges, range_min, range_max, angle_min, angle_max);
   
   // 2. calculating the sum log-likelihood scores
   int dim = int(2 * range_max / FLAGS_map_resolution); // 600
@@ -128,7 +138,6 @@ Eigen::MatrixXf SLAM::GetRasterizedCost(const vector<float>& ranges,
     for(int col_idx = 0; col_idx < dim; col_idx++){
       Vector2f grid_pt(range_max - row_idx * FLAGS_map_resolution, 
                        range_max - col_idx * FLAGS_map_resolution);
-      float sum_log_likelihood = 0.0;
       float pdf_value = 0.0;
       for(int ranges_idx = 0; ranges_idx < int(ranges.size()); ranges_idx++){
         Vector2f lidar_pt = point_cloud_[ranges_idx];
@@ -155,7 +164,7 @@ void SLAM::ObserveLaser(const vector<float>& ranges,
   std::cout << "ObserveLaser Pose: (" << curr_robot_loc_.x() << ", " << curr_robot_loc_.y() << endl;
 
   if (robot_locs_.size() == 0) {
-    Eigen::MatrixXf rasterized_cost = GetRasterizedCost(ranges, rasterized_cost, range_min, range_max, angle_min, angle_max);
+    Eigen::MatrixXf rasterized_cost = GetRasterizedCost(ranges, range_min, range_max, angle_min, angle_max);
     rasterized_costs.push_back(rasterized_cost);
     robot_locs_.push_back(curr_robot_loc_);
     robot_angles_.push_back(curr_robot_angle_);
