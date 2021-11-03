@@ -98,7 +98,7 @@ void PublishMap() {
   ClearVisualizationMsg(vis_msg_);
 
   const vector<Vector2f> map = slam_.GetMap();
-  printf("Map: %lu points\n", map.size());
+  //printf("Map: %lu points\n", map.size());
   for (const Vector2f& p : map) {
     visualization::DrawPoint(p, 0xC0C0C0, vis_msg_);
   }
@@ -118,7 +118,7 @@ void PublishPose() {
 
 void LaserCallback(const sensor_msgs::LaserScan& msg) {
   if (FLAGS_v > 0) {
-    printf("Laser t=%f\n", msg.header.stamp.toSec());
+    //printf("Laser t=%f\n", msg.header.stamp.toSec());
   }
   last_laser_msg_ = msg;
   slam_.ObserveLaser(
@@ -133,7 +133,7 @@ void LaserCallback(const sensor_msgs::LaserScan& msg) {
 
 void OdometryCallback(const nav_msgs::Odometry& msg) {
   if (FLAGS_v > 0) {
-    printf("Odometry t=%f\n", msg.header.stamp.toSec());
+    //printf("Odometry t=%f\n", msg.header.stamp.toSec());
   }
   const Vector2f odom_loc(msg.pose.pose.position.x, msg.pose.pose.position.y);
   const float odom_angle =
