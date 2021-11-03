@@ -1,3 +1,4 @@
+// Jai Shri Ram
 //========================================================================
 //  This software is free: you can redistribute it and/or modify
 //  it under the terms of the GNU Lesser General Public License Version 3,
@@ -80,16 +81,6 @@ void SLAM::GetPose(Eigen::Vector2f* loc, float* angle) const {
   *angle = curr_robot_angle_;
 }
 
-void SLAM::SaveRasterizedCostMap(Eigen::MatrixXf& rasterized_cost){
-  rasterized_cost = (rasterized_cost.array() - rasterized_cost.maxCoeff()).exp();
-  //cout << "the minimum value is : " << "  " << rasterized_cost.minCoeff();
-  //cout << "the maximum value is : " << "  " << rasterized_cost.maxCoeff();
-  //cv::Mat mat(600,600,CV_32FC1);
-  //cv::Mat mat = cv::Mat(600, 600, CV_32F);
-  //cout << mat;
-  //Eigen::Map<MatrixXf> rasterized_cost(mat.data());
-}
-
 float SLAM::GetObservationLikelihood(Eigen::MatrixXf& rasterized_cost,
                                     vector<Vector2f> point_cloud_,
                                     float range_min,
@@ -97,6 +88,7 @@ float SLAM::GetObservationLikelihood(Eigen::MatrixXf& rasterized_cost,
                                     float angle_min,
                                     float angle_max){
   // returns the observation likelihood scores of a given point_cloud_ using the rasterized_cost
+  float obs_log_likelihood = 0.0
   int dim = int(2 * range_max / FLAGS_map_resolution); // 600
   for(int pc_idx = 0; pc_idx < int(point_cloud_.size()); pc_idx++){
     Vector2f pt = point_cloud_[pc_idx];
@@ -104,12 +96,11 @@ float SLAM::GetObservationLikelihood(Eigen::MatrixXf& rasterized_cost,
                      int((range_max - pt[1]) / FLAGS_map_resolution));
     if (grid_pt[0] >= 0 && grid_pt[0] < dim){
       if (grid_pt[1] >= 0 && grid_pt[1] < dim){
-        log_likelihood_list.push_back(rasterized_cost(grid_pt[0], grid_pt[1]));
-        continue;
+        obs_log_likelihood += rasterized_cost(grid_pt[0], grid_pt[1]);
       }
     }
-    log_likelihood_list.push_back(0.0);
   }
+  return obs_log_likelihood;
 }
 
 Eigen::MatrixXf SLAM::GetRasterizedCost(const vector<float>& ranges,

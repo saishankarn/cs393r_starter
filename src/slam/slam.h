@@ -77,8 +77,7 @@ class SLAM {
 
   void SaveRasterizedCostMap(Eigen::MatrixXf& rasterized_cost);
 
-  void GetObservationLikelihood(std::vector<float>& log_likelihood_list,
-                                Eigen::MatrixXf& rasterized_cost,
+  float GetObservationLikelihood(Eigen::MatrixXf& rasterized_cost,
                                 std::vector<Eigen::Vector2f> point_cloud_,
                                 float range_min,
                                 float range_max,
