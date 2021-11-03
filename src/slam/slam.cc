@@ -121,7 +121,8 @@ std::vector<Vector2f> SLAM::GetPointCloud(const vector<float>& ranges,
   return point_cloud_;
 }
 
-Eigen::MatrixXf SLAM::GetRasterizedCost(const std::vector<float>& ranges,
+Eigen::MatrixXf SLAM::GetRasterizedCost(const std::vector<Vector2f>& point_cloud_,
+                                        const std::vector<float>& ranges,
                                         float range_min,
                                         float range_max,
                                         float angle_min,
@@ -129,7 +130,6 @@ Eigen::MatrixXf SLAM::GetRasterizedCost(const std::vector<float>& ranges,
   // Takes lidar scan as input and returns the cost array as ouput 
   
   // 1. convert the lidar scan from ranges to (x, y) coordinates 
-  std::vector<Vector2f> point_cloud_ = GetPointCloud(ranges, range_min, range_max, angle_min, angle_max);
   
   // 2. calculating the sum log-likelihood scores
   int dim = int(2 * range_max / FLAGS_map_resolution); // 600
@@ -164,7 +164,8 @@ void SLAM::ObserveLaser(const vector<float>& ranges,
   std::cout << "ObserveLaser Pose: (" << curr_robot_loc_.x() << ", " << curr_robot_loc_.y() << endl;
 
   if (robot_locs_.size() == 0) {
-    Eigen::MatrixXf rasterized_cost = GetRasterizedCost(ranges, range_min, range_max, angle_min, angle_max);
+    std::vector<Vector2f> point_cloud_ = GetPointCloud(ranges, range_min, range_max, angle_min, angle_max);
+    Eigen::MatrixXf rasterized_cost = GetRasterizedCost(point_cloud_, ranges, range_min, range_max, angle_min, angle_max);
     rasterized_costs.push_back(rasterized_cost);
     robot_locs_.push_back(curr_robot_loc_);
     robot_angles_.push_back(curr_robot_angle_);
@@ -175,9 +176,10 @@ void SLAM::ObserveLaser(const vector<float>& ranges,
     // std::cout << FLAGS_succ_trans_dist << endl;
     // std::cout << fabs(curr_robot_angle_ - robot_angles_.back()) << endl;
     // std::cout << FLAGS_succ_ang_dist << endl;
-    Eigen::MatrixXf rasterized_cost = GetRasterizedCost(ranges, range_min, range_max, angle_min, angle_max);
+    std::vector<Vector2f> point_cloud_ = GetPointCloud(ranges, range_min, range_max, angle_min, angle_max);
+    Eigen::MatrixXf rasterized_cost = GetRasterizedCost(point_cloud_, ranges, range_min, range_max, angle_min, angle_max);
     std::tie(curr_robot_loc_, curr_robot_angle_) = GetMostLikelyPose(curr_robot_loc_, curr_robot_angle_, robot_locs_.back(),  robot_angles_.back(),
-                                                                     rasterized_cost, point_cloud_, range_max);
+                                                                     rasterized_costs.back(), point_cloud_, range_max);
     rasterized_costs.push_back(rasterized_cost);
     robot_locs_.push_back(curr_robot_loc_);
     robot_angles_.push_back(curr_robot_angle_);
@@ -189,7 +191,7 @@ std::tuple<Eigen::Vector2f, float> SLAM::GetMostLikelyPose(const Eigen::Vector2f
                                                            const Eigen::Vector2f& prevSLAMPoseLoc,
                                                            const float& prevSLAMPoseAngle,
                                                            const Eigen::MatrixXf& rasterized_cost,
-                                                           const vector<Vector2f>& point_cloud_,
+                                                           const std::vector<Eigen::Vector2f>& point_cloud_,
                                                            const float& range_max) const {
   // Defining the likelihood cube. The size of the cube depends on the magnitude
   // of relative motion measured or more precisely the difference in the odometry
@@ -226,11 +228,11 @@ std::tuple<Eigen::Vector2f, float> SLAM::GetMostLikelyPose(const Eigen::Vector2f
   logLikelihoodSquare.resize(gridSizeX, gridSizeY);
   float logLikelihoodMotionModel;
   // float logLikelihoodObservationModel;
-  float maxLogLikelihood;
+  float maxLogLikelihood = -INFINITY;
   float likelihoodMotionModelQ;
   std::vector<float> likelihoodMotionModelX;
   std::vector<float> likelihoodMotionModelY;
-  float loc = relSLAMPoseLoc;
+  Eigen::Vector2f loc = relSLAMPoseLoc;
   float angle = relSLAMPoseAngle;
 
   for(int k = 0; k < gridSizeQ; k++) {

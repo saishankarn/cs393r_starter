@@ -68,11 +68,12 @@ class SLAM {
   std::vector<Eigen::MatrixXf> rasterized_costs;
 
   // custom slam functions 
-  Eigen::MatrixXf GetRasterizedCost(const std::vector<float>& ranges,
-                         float range_min,
-                         float range_max,
-                         float angle_min,
-                         float angle_max);
+  Eigen::MatrixXf GetRasterizedCost(const std::vector<Eigen::Vector2f>& point_cloud_,
+                                    const std::vector<float>& ranges,
+                                    float range_min,
+                                    float range_max,
+                                    float angle_min,
+                                    float angle_max);
 
   std::vector<Eigen::Vector2f> GetPointCloud(const std::vector<float>& ranges,
                                     float range_min,
@@ -92,8 +93,8 @@ class SLAM {
                                                            const Eigen::Vector2f& prevSLAMPoseLoc,
                                                            const float& prevSLAMPoseAngle,
                                                            const Eigen::MatrixXf& rasterized_cost,
-                                                           const vector<Vector2f>& point_cloud_,
-                                                           const float& range_max) const {
+                                                           const std::vector<Eigen::Vector2f>& point_cloud_,
+                                                           const float& range_max) const;
 
   std::tuple<Eigen::Vector2f, float> DeterministicMotionModel(const Eigen::Vector2f& prevLoc,
                                                  const float prevAngle,
