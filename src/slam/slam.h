@@ -68,14 +68,17 @@ class SLAM {
   std::vector<Eigen::MatrixXf> rasterized_costs;
 
   // custom slam functions 
-  Eigen::MatrixXf GetRasterizedCost(const std::vector<float>& ranges, 
-                         Eigen::MatrixXf& rasterized_cost,
+  Eigen::MatrixXf GetRasterizedCost(const std::vector<float>& ranges,
                          float range_min,
                          float range_max,
                          float angle_min,
                          float angle_max);
 
-  void SaveRasterizedCostMap(Eigen::MatrixXf& rasterized_cost);
+  std::vector<Eigen::Vector2f> GetPointCloud(const std::vector<float>& ranges,
+                                    float range_min,
+                                    float range_max,
+                                    float angle_min,
+                                    float angle_max);
 
   float GetObservationLikelihood(Eigen::MatrixXf& rasterized_cost,
                                 std::vector<Eigen::Vector2f> point_cloud_,
