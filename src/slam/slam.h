@@ -84,10 +84,13 @@ class SLAM {
                                 float angle_min,
                                 float angle_max);
     
-  std::tuple<Eigen::Vector2f, float> GetMostLikelyPose(const Eigen::Vector2f& currSLAMPoseOdomLoc,
-                                 const float& currSLAMPoseOdomAngle,
-                                 const Eigen::Vector2f& prevSLAMPoseOdomLoc,
-                                 const float& prevSLAMPoseOdomAngle) const;
+  std::tuple<Eigen::Vector2f, float> GetMostLikelyPose(const Eigen::Vector2f& currSLAMPoseLoc,                                                           
+                                                           const float& currSLAMPoseAngle,
+                                                           const Eigen::Vector2f& prevSLAMPoseLoc,
+                                                           const float& prevSLAMPoseAngle,
+                                                           const Eigen::MatrixXf& rasterized_cost,
+                                                           const vector<Vector2f>& point_cloud_,
+                                                           const float& range_max) const {
 
   std::tuple<Eigen::Vector2f, float> DeterministicMotionModel(const Eigen::Vector2f& prevLoc,
                                                  const float prevAngle,

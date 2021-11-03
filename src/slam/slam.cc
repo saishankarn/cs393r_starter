@@ -88,7 +88,7 @@ float SLAM::GetObservationLikelihood(Eigen::MatrixXf& rasterized_cost,
                                     float angle_min,
                                     float angle_max){
   // returns the observation likelihood scores of a given point_cloud_ using the rasterized_cost
-  float obs_log_likelihood = 0.0
+  float obs_log_likelihood = 0.0;
   int dim = int(2 * range_max / FLAGS_map_resolution); // 600
   for(int pc_idx = 0; pc_idx < int(point_cloud_.size()); pc_idx++){
     Vector2f pt = point_cloud_[pc_idx];
@@ -167,31 +167,34 @@ void SLAM::ObserveLaser(const vector<float>& ranges,
     // std::cout << fabs(curr_robot_angle_ - robot_angles_.back()) << endl;
     // std::cout << FLAGS_succ_ang_dist << endl;
     Eigen::MatrixXf rasterized_cost = GetRasterizedCost(ranges, range_min, range_max, angle_min, angle_max);
-    std::tie(curr_robot_loc_, curr_robot_angle_) = GetMostLikelyPose(curr_robot_loc_, curr_robot_angle_, robot_locs_.back(),  robot_angles_.back());
-    
+    std::tie(curr_robot_loc_, curr_robot_angle_) = GetMostLikelyPose(curr_robot_loc_, curr_robot_angle_, robot_locs_.back(),  robot_angles_.back(),
+                                                                     rasterized_cost, point_cloud_, range_max);
     rasterized_costs.push_back(rasterized_cost);
     robot_locs_.push_back(curr_robot_loc_);
     robot_angles_.push_back(curr_robot_angle_);
   }
 }
 
-std::tuple<Eigen::Vector2f, float> SLAM::GetMostLikelyPose(const Eigen::Vector2f& currSLAMPoseLoc,
-                                 const float& currSLAMPoseAngle,
-                                 const Eigen::Vector2f& prevSLAMPoseLoc,
-                                 const float& prevSLAMPoseAngle) const {
+std::tuple<Eigen::Vector2f, float> SLAM::GetMostLikelyPose(const Eigen::Vector2f& currSLAMPoseLoc,                                                           
+                                                           const float& currSLAMPoseAngle,
+                                                           const Eigen::Vector2f& prevSLAMPoseLoc,
+                                                           const float& prevSLAMPoseAngle,
+                                                           const Eigen::MatrixXf& rasterized_cost,
+                                                           const vector<Vector2f>& point_cloud_,
+                                                           const float& range_max) const {
   // Defining the likelihood cube. The size of the cube depends on the magnitude
   // of relative motion measured or more precisely the difference in the odometry
   // readings between successive poses.
   // The plausible relative transforms are assumed to be within 95%/ 2 sigma of the 
   // gaussin centered at the relative odometry reading.
   
-  Eigen::Vector2f relOdomLoc = currSLAMPoseLoc - prevSLAMPoseLoc;
-  float relOdomAngle = currSLAMPoseAngle - prevSLAMPoseAngle;
-  relOdomAngle = (fabs(fabs(relOdomAngle) - 2*M_PI) < fabs(relOdomAngle)) ? 
-                 signbit(relOdomAngle)*(fabs(relOdomAngle) -2*M_PI) : relOdomAngle;
+  Eigen::Vector2f relSLAMPoseLoc = currSLAMPoseLoc - prevSLAMPoseLoc;
+  float relSLAMPoseAngle = currSLAMPoseAngle - prevSLAMPoseAngle;
+  relSLAMPoseAngle = (fabs(fabs(relSLAMPoseAngle) - 2*M_PI) < fabs(relSLAMPoseAngle)) ? 
+                 signbit(relSLAMPoseAngle)*(fabs(relSLAMPoseAngle) -2*M_PI) : relSLAMPoseAngle;
 
-  float sigmaTrans = FLAGS_std_k1*relOdomLoc.norm() + FLAGS_std_k2*fabs(relOdomAngle);
-  float sigmaRot = FLAGS_std_k3*relOdomLoc.norm() + FLAGS_std_k4*fabs(relOdomAngle);
+  float sigmaTrans = FLAGS_std_k1*relSLAMPoseLoc.norm() + FLAGS_std_k2*fabs(relSLAMPoseAngle);
+  float sigmaRot = FLAGS_std_k3*relSLAMPoseLoc.norm() + FLAGS_std_k4*fabs(relSLAMPoseAngle);
 
   float numOfSigmas = 2;
   int gridSizeX;
@@ -205,9 +208,9 @@ std::tuple<Eigen::Vector2f, float> SLAM::GetMostLikelyPose(const Eigen::Vector2f
   gridSizeQ = 2*gridSizeQ + 1;
 
 
-  float gridXMin = relOdomLoc.x() - ((gridSizeX - 1)/2)*FLAGS_gridDelX;
-  float gridYMin = relOdomLoc.y() - ((gridSizeY - 1)/2)*FLAGS_gridDelY;
-  float gridQMin = relOdomAngle - ((gridSizeX - 1)/2)*FLAGS_gridDelQ;
+  float gridXMin = relSLAMPoseLoc.x() - ((gridSizeX - 1)/2)*FLAGS_gridDelX;
+  float gridYMin = relSLAMPoseLoc.y() - ((gridSizeY - 1)/2)*FLAGS_gridDelY;
+  float gridQMin = relSLAMPoseAngle - ((gridSizeQ - 1)/2)*FLAGS_gridDelQ;
 
   std::vector<Eigen::MatrixXf> logLikelihoodCube;
   Eigen::MatrixXf logLikelihoodSquare;
@@ -215,44 +218,50 @@ std::tuple<Eigen::Vector2f, float> SLAM::GetMostLikelyPose(const Eigen::Vector2f
   float logLikelihoodMotionModel;
   // float logLikelihoodObservationModel;
   float maxLogLikelihood;
+  float likelihoodMotionModelQ;
   std::vector<float> likelihoodMotionModelX;
   std::vector<float> likelihoodMotionModelY;
-  float likelihoodMotionModelQ;
+  float loc = relSLAMPoseLoc;
+  float angle = relSLAMPoseAngle;
 
   for(int k = 0; k < gridSizeQ; k++) {
     likelihoodMotionModelQ = 
-      statistics::ProbabilityDensityGaussian((float)(gridQMin + k*FLAGS_gridDelX), relOdomAngle, sigmaRot);
+      statistics::ProbabilityDensityGaussian((float)(gridQMin + k*FLAGS_gridDelQ), relSLAMPoseAngle, sigmaRot);
 
     for(int i = 0; i < gridSizeX; i++) {
       if(k == 0) {
         likelihoodMotionModelX.push_back(
-          statistics::ProbabilityDensityGaussian((float)(gridXMin + i*FLAGS_gridDelX), relOdomLoc.x(), sigmaTrans)
+          statistics::ProbabilityDensityGaussian((float)(gridXMin + i*FLAGS_gridDelX), relSLAMPoseLoc.x(), sigmaTrans)
         );
       }
       for(int j = 0; j < gridSizeY; j++) {
         if(k == 0 && i == 0) {
           likelihoodMotionModelY.push_back( 
-            statistics::ProbabilityDensityGaussian((float)(gridYMin + j*FLAGS_gridDelY), relOdomLoc.y(), sigmaTrans)
+            statistics::ProbabilityDensityGaussian((float)(gridYMin + j*FLAGS_gridDelY), relSLAMPoseLoc.y(), sigmaTrans)
           );
         }
-        logLikelihoodMotionModel = std::log(likelihoodMotionModelQ*likelihoodMotionModelX[i]*likelihoodMotionModelX[j]);
+        logLikelihoodMotionModel = std::log(likelihoodMotionModelQ*likelihoodMotionModelX[i]*likelihoodMotionModelY[j]);
         logLikelihoodSquare(i, j) = logLikelihoodMotionModel;//+ logLikelihoodObservationModel;
         if(k == 0 && i == 0 && j == 0)
           maxLogLikelihood = logLikelihoodSquare(i, j);
-        else 
-          maxLogLikelihood = std::max(maxLogLikelihood, logLikelihoodSquare(i, j));
-      } 
+        else {
+          if (logLikelihoodSquare(i, j) > maxLogLikelihood) {
+            maxLogLikelihood = logLikelihoodSquare(i, j);
+            loc = Eigen::Vector2f((float)(gridXMin + i*FLAGS_gridDelX), (float)(gridYMin + j*FLAGS_gridDelY));
+            angle = (float)(gridQMin + k*FLAGS_gridDelQ);
+          }
+        }
+      }
     }
   logLikelihoodCube.push_back(logLikelihoodSquare);
   //std::cout << logLikelihoodCube[k] << endl;
   }
-
   // std::cout << "Current pose: (" << currSLAMPoseLoc.x() << ", " << currSLAMPoseLoc.y() << ", "
   //           << math_util::RadToDeg(currSLAMPoseAngle) << ")" << endl;
   // std::cout << "Previous pose: (" << prevSLAMPoseLoc.x() << ", " << prevSLAMPoseLoc.y() << ", "
   //           << math_util::RadToDeg(prevSLAMPoseAngle) << ")" << endl;
   // std::cout << "-------------------------------------------------------------------------" << endl;
-  // return std::make_tuple(loc, angle);
+  return std::make_tuple(loc, angle);
 }
 
 
