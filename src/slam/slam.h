@@ -68,7 +68,7 @@ class SLAM {
   std::vector<Eigen::MatrixXf> rasterized_costs;
 
   // custom slam functions 
-  void GetRasterizedCost(const std::vector<float>& ranges, 
+  Eigen::MatrixXf GetRasterizedCost(const std::vector<float>& ranges, 
                          Eigen::MatrixXf& rasterized_cost,
                          float range_min,
                          float range_max,
@@ -85,7 +85,7 @@ class SLAM {
                                 float angle_min,
                                 float angle_max);
     
-    void PopulateLikelihoodCube(const Eigen::Vector2f& currSLAMPoseOdomLoc,
+  std::tuple<Eigen::Vector2f, float> GetMostLikelyPose(const Eigen::Vector2f& currSLAMPoseOdomLoc,
                                  const float& currSLAMPoseOdomAngle,
                                  const Eigen::Vector2f& prevSLAMPoseOdomLoc,
                                  const float& prevSLAMPoseOdomAngle) const;
