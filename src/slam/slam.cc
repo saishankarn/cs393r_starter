@@ -79,7 +79,7 @@ void SLAM::GetPose(Eigen::Vector2f* loc, float* angle) const {
   // Return the latest pose estimate of the robot.
   *loc = curr_robot_loc_;
   *angle = curr_robot_angle_;
-  std::cout << "SLAM::GetPose Pose: (" << curr_robot_loc_.x() << ", " << curr_robot_loc_.y() << ")" << endl;
+  // std::cout << "SLAM::GetPose Pose: (" << curr_robot_loc_.x() << ", " << curr_robot_loc_.y() << ")" << endl;
 }
 
 float SLAM::GetObservationLikelihood(Eigen::MatrixXf& rasterized_cost,
@@ -162,7 +162,20 @@ void SLAM::ObserveLaser(const vector<float>& ranges,
   // for SLAM. If decided to add, align it to the scan from the last saved pose,
   // and save both the scan and the optimized pose.
 
-  std::cout << "ObserveLaser Pose: (" << curr_robot_loc_.x() << ", " << curr_robot_loc_.y() << ")" << endl;
+  // std::cout << "ObserveLaser Pose: (" << curr_robot_loc_.x() << ", " << curr_robot_loc_.y() << ")" << endl;
+
+  // if (time_stamp_ % 100 == 0) {
+  //   std::vector<Vector2f> point_cloud_ = GetPointCloud(ranges, range_min, range_max, angle_min, angle_max);
+  //   // Eigen::MatrixXf rasterized_cost = GetRasterizedCost(point_cloud_, ranges, range_min, range_max, angle_min, angle_max);
+  //   // rasterized_costs.push_back(rasterized_cost);
+  //   robot_locs_.push_back(curr_robot_loc_);
+  //   robot_angles_.push_back(curr_robot_angle_);
+  //   point_clouds.push_back(point_cloud_);
+  //   printf("TimeStamp: %lu points\n", time_stamp_);
+  // }
+  // // printf("TimeStamp: %lu points\n", time_stamp_);
+  // time_stamp_++;
+
 
   if (robot_locs_.size() == 0) {
     std::vector<Vector2f> point_cloud_ = GetPointCloud(ranges, range_min, range_max, angle_min, angle_max);
@@ -317,7 +330,7 @@ void SLAM::ObserveOdometry(const Vector2f& odom_loc, const float odom_angle) {
   std::tie(curr_robot_loc_, curr_robot_angle_) = DeterministicMotionModel(curr_robot_loc_, curr_robot_angle_,
     odom_loc, odom_angle, prev_odom_loc_, prev_odom_angle_);
 
-  std::cout << "ObserveOdometry Pose: (" << curr_robot_loc_.x() << ", " << curr_robot_loc_.y() << ")" << endl;
+  // std::cout << "ObserveOdometry Pose: (" << curr_robot_loc_.x() << ", " << curr_robot_loc_.y() << ")" << endl;
 
   // updating the previous odometry values
   prev_odom_loc_ = odom_loc;
@@ -329,7 +342,6 @@ Vector2f SLAM::TransformAndEstimatePointCloud(float x, float y, float theta, Vec
   T << cos(theta), -sin(theta), x, 
        sin(theta), cos(theta), y, 
        0, 0, 1;
-  T = T.inverse();
   Eigen::Vector3f pt3(pt[0], pt[1], 1);
   pt3 = T*pt3;
   return Vector2f(pt3[0], pt3[1]);
