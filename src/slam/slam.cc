@@ -79,6 +79,7 @@ void SLAM::GetPose(Eigen::Vector2f* loc, float* angle) const {
   // Return the latest pose estimate of the robot.
   *loc = curr_robot_loc_;
   *angle = curr_robot_angle_;
+  std::cout << "SLAM::GetPose Pose: (" << curr_robot_loc_.x() << ", " << curr_robot_loc_.y() << ")" << endl;
 }
 
 float SLAM::GetObservationLikelihood(Eigen::MatrixXf& rasterized_cost,
@@ -161,7 +162,7 @@ void SLAM::ObserveLaser(const vector<float>& ranges,
   // for SLAM. If decided to add, align it to the scan from the last saved pose,
   // and save both the scan and the optimized pose.
 
-  std::cout << "ObserveLaser Pose: (" << curr_robot_loc_.x() << ", " << curr_robot_loc_.y() << endl;
+  std::cout << "ObserveLaser Pose: (" << curr_robot_loc_.x() << ", " << curr_robot_loc_.y() << ")" << endl;
 
   if (robot_locs_.size() == 0) {
     std::vector<Vector2f> point_cloud_ = GetPointCloud(ranges, range_min, range_max, angle_min, angle_max);
@@ -232,8 +233,8 @@ std::tuple<Eigen::Vector2f, float> SLAM::GetMostLikelyPose(const Eigen::Vector2f
   float likelihoodMotionModelQ;
   std::vector<float> likelihoodMotionModelX;
   std::vector<float> likelihoodMotionModelY;
-  Eigen::Vector2f loc = relSLAMPoseLoc;
-  float angle = relSLAMPoseAngle;
+  Eigen::Vector2f relLoc = relSLAMPoseLoc;
+  float relAngle = relSLAMPoseAngle;
 
   for(int k = 0; k < gridSizeQ; k++) {
     likelihoodMotionModelQ = 
@@ -258,8 +259,8 @@ std::tuple<Eigen::Vector2f, float> SLAM::GetMostLikelyPose(const Eigen::Vector2f
         else {
           if (logLikelihoodSquare(i, j) > maxLogLikelihood) {
             maxLogLikelihood = logLikelihoodSquare(i, j);
-            loc = Eigen::Vector2f((float)(gridXMin + i*FLAGS_gridDelX), (float)(gridYMin + j*FLAGS_gridDelY));
-            angle = (float)(gridQMin + k*FLAGS_gridDelQ);
+            relLoc = Eigen::Vector2f((float)(gridXMin + i*FLAGS_gridDelX), (float)(gridYMin + j*FLAGS_gridDelY));
+            relAngle = (float)(gridQMin + k*FLAGS_gridDelQ);
           }
         }
       }
@@ -272,7 +273,7 @@ std::tuple<Eigen::Vector2f, float> SLAM::GetMostLikelyPose(const Eigen::Vector2f
   // std::cout << "Previous pose: (" << prevSLAMPoseLoc.x() << ", " << prevSLAMPoseLoc.y() << ", "
   //           << math_util::RadToDeg(prevSLAMPoseAngle) << ")" << endl;
   // std::cout << "-------------------------------------------------------------------------" << endl;
-  return std::make_tuple(loc, angle);
+  return std::make_tuple(prevSLAMPoseLoc + relLoc, prevSLAMPoseAngle + relAngle);
 }
 
 
@@ -314,7 +315,7 @@ void SLAM::ObserveOdometry(const Vector2f& odom_loc, const float odom_angle) {
   std::tie(curr_robot_loc_, curr_robot_angle_) = DeterministicMotionModel(curr_robot_loc_, curr_robot_angle_,
     odom_loc, odom_angle, prev_odom_loc_, prev_odom_angle_);
 
-  std::cout << "ObserveOdometry Pose: (" << curr_robot_loc_.x() << ", " << curr_robot_loc_.y() << endl;
+  std::cout << "ObserveOdometry Pose: (" << curr_robot_loc_.x() << ", " << curr_robot_loc_.y() << ")" << endl;
 
   // updating the previous odometry values
   prev_odom_loc_ = odom_loc;
