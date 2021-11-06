@@ -153,19 +153,7 @@ Eigen::MatrixXf SLAM::GetRasterizedCost(const std::vector<Vector2f>& point_cloud
   }
   Eigen::MatrixXf rasterized_cost = Eigen::MatrixXf::Map(&log_likelihood_list[0], dim, dim);
   rasterized_cost.transposeInPlace();
-  CImg<float> image(256,256,1,1,0);
-  cimg_forXYC(image,x,y,c) { image(x,y,c) = rasterized_cost[x][y]]; }
-  CImgDisplay main_disp(image,"Click a point");
-  while (!main_disp.is_closed()) {
-    main_disp.wait();
-    if (main_disp.button()) {
-      const int x = main_disp.mouse_x();
-      const int y = main_disp.mouse_y();
-      if (x >=0 && y >=0 && x < image.width() && y < image.height()) {
-        cout << "Value at " << x << "," << y << " : " << image(x, y) << endl;
-      }
-    }
-  } 
+   
   return(rasterized_cost);
 }
 
