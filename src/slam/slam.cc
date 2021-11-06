@@ -265,8 +265,8 @@ std::tuple<Eigen::Vector2f, float> SLAM::GetMostLikelyPose(const Eigen::Vector2f
   float likelihoodMotionModelQ;
   std::vector<float> likelihoodMotionModelX;
   std::vector<float> likelihoodMotionModelY;
-  Eigen::Vector2f loc = relSLAMPoseLoc;
-  float angle = relSLAMPoseAngle;
+  Eigen::Vector2f relLoc = relSLAMPoseLoc;
+  float relAngle = relSLAMPoseAngle;
 
   for(int k = 0; k < gridSizeQ; k++) {
     likelihoodMotionModelQ = 
@@ -291,7 +291,7 @@ std::tuple<Eigen::Vector2f, float> SLAM::GetMostLikelyPose(const Eigen::Vector2f
             statistics::ProbabilityDensityGaussian((float)(gridYMin + j*FLAGS_gridDelY), relSLAMPoseLoc.y(), sigmaTrans)
           );
         }
-        float CandidateY = relSLAMPoseLoc.y() + (float)(gridYMin + i*FLAGS_gridDelY);
+        float CandidateY = relSLAMPoseLoc.y() + (float)(gridYMin + j*FLAGS_gridDelY);
 
         std::vector<Eigen::Vector2f> Candidate_point_cloud_;
         for(size_t cpc_idx = 0; cpc_idx < point_cloud_.size(); cpc_idx++){
@@ -308,8 +308,8 @@ std::tuple<Eigen::Vector2f, float> SLAM::GetMostLikelyPose(const Eigen::Vector2f
         else {
           if (logLikelihoodSquare(i, j) > maxLogLikelihood) {
             maxLogLikelihood = logLikelihoodSquare(i, j);
-            loc = Eigen::Vector2f((float)(gridXMin + i*FLAGS_gridDelX), (float)(gridYMin + j*FLAGS_gridDelY));
-            angle = (float)(gridQMin + k*FLAGS_gridDelQ);
+            relLoc = Eigen::Vector2f((float)(gridXMin + i*FLAGS_gridDelX), (float)(gridYMin + j*FLAGS_gridDelY));
+            relAngle = (float)(gridQMin + k*FLAGS_gridDelQ);
           }
         }
       }
@@ -322,7 +322,7 @@ std::tuple<Eigen::Vector2f, float> SLAM::GetMostLikelyPose(const Eigen::Vector2f
   // std::cout << "Previous pose: (" << prevSLAMPoseLoc.x() << ", " << prevSLAMPoseLoc.y() << ", "
   //           << math_util::RadToDeg(prevSLAMPoseAngle) << ")" << endl;
   // std::cout << "-------------------------------------------------------------------------" << endl;
-  return std::make_tuple(loc, angle);
+  return std::make_tuple(prevSLAMPoseLoc + relLoc, prevSLAMPoseAngle + relAngle);
 }
 
 
