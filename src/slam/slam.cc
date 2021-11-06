@@ -169,6 +169,7 @@ void SLAM::ObserveLaser(const vector<float>& ranges,
     rasterized_costs.push_back(rasterized_cost);
     robot_locs_.push_back(curr_robot_loc_);
     robot_angles_.push_back(curr_robot_angle_);
+    point_clouds.push_back(point_cloud_);
   }
   
   if ((curr_robot_loc_ - robot_locs_.back()).norm() > FLAGS_succ_trans_dist || fabs(curr_robot_angle_ - robot_angles_.back()) > FLAGS_succ_ang_dist) {
@@ -183,6 +184,7 @@ void SLAM::ObserveLaser(const vector<float>& ranges,
     rasterized_costs.push_back(rasterized_cost);
     robot_locs_.push_back(curr_robot_loc_);
     robot_angles_.push_back(curr_robot_angle_);
+    point_clouds.push_back(point_cloud_);
   }
 }
 
@@ -321,10 +323,31 @@ void SLAM::ObserveOdometry(const Vector2f& odom_loc, const float odom_angle) {
   prev_odom_angle_ = odom_angle;
 }
 
+Vector2f SLAM::TransformAndEstimatePointCloud(float x, float y, float theta, Vector2f pt){
+  Eigen::Matrix3f T;
+  T << cos(theta), -sin(theta), x, 
+       sin(theta), cos(theta), y, 
+       0, 0, 1;
+  T = T.inverse();
+  Eigen::Vector3f pt3(pt[0], pt[1], 1);
+  pt3 = T*pt3;
+  return Vector2f(pt3[0], pt3[1]);
+}
+
 vector<Vector2f> SLAM::GetMap() {
   vector<Vector2f> map;
   // Reconstruct the map as a single aligned point cloud from all saved poses
   // and their respective scans.
+  for(size_t pose_idx = 0; pose_idx < robot_locs_.size(); pose_idx++){
+    Vector2f robot_loc = robot_locs_[pose_idx];
+    float robot_angle = robot_angles_[pose_idx];
+    vector<Vector2f> point_cloud = point_clouds[pose_idx];
+    for(size_t pc_idx = 0; pc_idx < point_cloud.size(); pc_idx++){
+      Vector2f pc_pt = point_cloud[pc_idx];
+      Vector2f map_point = TransformAndEstimatePointCloud(robot_loc[0], robot_loc[1], robot_angle, pc_pt);
+      map.push_back(map_point);
+    }
+  }
   return map;
 }
 
