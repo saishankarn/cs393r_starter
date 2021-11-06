@@ -86,18 +86,15 @@ class SLAM {
 
   float GetObservationLikelihood(Eigen::MatrixXf& rasterized_cost,
                                 std::vector<Eigen::Vector2f> point_cloud_,
-                                float range_min,
-                                float range_max,
-                                float angle_min,
-                                float angle_max);
+                                float range_max);
     
   std::tuple<Eigen::Vector2f, float> GetMostLikelyPose(const Eigen::Vector2f& currSLAMPoseLoc,                                                           
                                                            const float& currSLAMPoseAngle,
                                                            const Eigen::Vector2f& prevSLAMPoseLoc,
                                                            const float& prevSLAMPoseAngle,
-                                                           const Eigen::MatrixXf& rasterized_cost,
+                                                           Eigen::MatrixXf& rasterized_cost,
                                                            const std::vector<Eigen::Vector2f>& point_cloud_,
-                                                           const float& range_max) const;
+                                                           const float& range_max);
 
   std::tuple<Eigen::Vector2f, float> DeterministicMotionModel(const Eigen::Vector2f& prevLoc,
                                                  const float prevAngle,

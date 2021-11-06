@@ -84,10 +84,7 @@ void SLAM::GetPose(Eigen::Vector2f* loc, float* angle) const {
 
 float SLAM::GetObservationLikelihood(Eigen::MatrixXf& rasterized_cost,
                                     vector<Vector2f> point_cloud_,
-                                    float range_min,
-                                    float range_max,
-                                    float angle_min,
-                                    float angle_max){
+                                    float range_max){
   // returns the observation likelihood scores of a given point_cloud_ using the rasterized_cost
   float obs_log_likelihood = 0.0;
   int dim = int(2 * range_max / FLAGS_map_resolution); // 600
@@ -193,9 +190,9 @@ std::tuple<Eigen::Vector2f, float> SLAM::GetMostLikelyPose(const Eigen::Vector2f
                                                            const float& currSLAMPoseAngle,
                                                            const Eigen::Vector2f& prevSLAMPoseLoc,
                                                            const float& prevSLAMPoseAngle,
-                                                           const Eigen::MatrixXf& rasterized_cost,
+                                                           Eigen::MatrixXf& rasterized_cost,
                                                            const std::vector<Eigen::Vector2f>& point_cloud_,
-                                                           const float& range_max) const {
+                                                           const float& range_max){
   // Defining the likelihood cube. The size of the cube depends on the magnitude
   // of relative motion measured or more precisely the difference in the odometry
   // readings between successive poses.
@@ -230,7 +227,7 @@ std::tuple<Eigen::Vector2f, float> SLAM::GetMostLikelyPose(const Eigen::Vector2f
   Eigen::MatrixXf logLikelihoodSquare;
   logLikelihoodSquare.resize(gridSizeX, gridSizeY);
   float logLikelihoodMotionModel;
-  // float logLikelihoodObservationModel;
+  float logLikelihoodObservationModel;
   float maxLogLikelihood = -INFINITY;
   float likelihoodMotionModelQ;
   std::vector<float> likelihoodMotionModelX;
@@ -241,21 +238,37 @@ std::tuple<Eigen::Vector2f, float> SLAM::GetMostLikelyPose(const Eigen::Vector2f
   for(int k = 0; k < gridSizeQ; k++) {
     likelihoodMotionModelQ = 
       statistics::ProbabilityDensityGaussian((float)(gridQMin + k*FLAGS_gridDelQ), relSLAMPoseAngle, sigmaRot);
-
+    float delQ = (float)(gridQMin + k*FLAGS_gridDelQ);
+    double cosAngleCandidate = cos(relSLAMPoseAngle + delQ);
+    double sinAngleCandidate = sin(relSLAMPoseAngle + delQ);
+    Eigen::Matrix2f CandidateR;
+    CandidateR << cosAngleCandidate, -sinAngleCandidate, 
+                  sinAngleCandidate, cosAngleCandidate;
+    
     for(int i = 0; i < gridSizeX; i++) {
       if(k == 0) {
         likelihoodMotionModelX.push_back(
           statistics::ProbabilityDensityGaussian((float)(gridXMin + i*FLAGS_gridDelX), relSLAMPoseLoc.x(), sigmaTrans)
         );
       }
+      float CandidateX = relSLAMPoseLoc.x() + (float)(gridXMin + i*FLAGS_gridDelX);
       for(int j = 0; j < gridSizeY; j++) {
         if(k == 0 && i == 0) {
           likelihoodMotionModelY.push_back( 
             statistics::ProbabilityDensityGaussian((float)(gridYMin + j*FLAGS_gridDelY), relSLAMPoseLoc.y(), sigmaTrans)
           );
         }
+        float CandidateY = relSLAMPoseLoc.y() + (float)(gridYMin + i*FLAGS_gridDelY);
+
+        std::vector<Eigen::Vector2f> Candidate_point_cloud_;
+        for(size_t cpc_idx = 0; cpc_idx < point_cloud_.size(); cpc_idx++){
+          Vector2f pc_pt = point_cloud_[cpc_idx];
+          Vector2f candidate_pc_pt = CandidateR * pc_pt + Vector2f(CandidateX, CandidateY);
+          Candidate_point_cloud_.push_back(candidate_pc_pt);
+        }
+        logLikelihoodObservationModel = GetObservationLikelihood(rasterized_cost, Candidate_point_cloud_, range_max);
         logLikelihoodMotionModel = std::log(likelihoodMotionModelQ*likelihoodMotionModelX[i]*likelihoodMotionModelY[j]);
-        logLikelihoodSquare(i, j) = logLikelihoodMotionModel;//+ logLikelihoodObservationModel;
+        logLikelihoodSquare(i, j) = logLikelihoodMotionModel + logLikelihoodObservationModel;
         if(k == 0 && i == 0 && j == 0)
           maxLogLikelihood = logLikelihoodSquare(i, j);
         else {
@@ -329,7 +342,6 @@ Vector2f SLAM::TransformAndEstimatePointCloud(float x, float y, float theta, Vec
   T << cos(theta), -sin(theta), x, 
        sin(theta), cos(theta), y, 
        0, 0, 1;
-  T = T.inverse();
   Eigen::Vector3f pt3(pt[0], pt[1], 1);
   pt3 = T*pt3;
   return Vector2f(pt3[0], pt3[1]);
