@@ -151,19 +151,19 @@ Eigen::MatrixXf SLAM::GetRasterizedCost(const std::vector<Vector2f>& point_cloud
   Eigen::MatrixXf rasterized_cost = Eigen::MatrixXf::Map(&log_likelihood_list[0], dim, dim);
   rasterized_cost.transposeInPlace();
 
-  CImg<float> image(256,256,1,1,0);
-  cimg_forXYC(image,x,y,c) { image(x,y,c) = rasterized_cost(x,y); }
-  CImgDisplay main_disp(image,"Click a point");
-  while (!main_disp.is_closed()) {
-    main_disp.wait();
-    if (main_disp.button()) {
-      const int x = main_disp.mouse_x();
-      const int y = main_disp.mouse_y();
-      if (x >=0 && y >=0 && x < image.width() && y < image.height()) {
-        cout << "Value at " << x << "," << y << " : " << image(x, y) << endl;
-      }
-    }
-  } 
+  // CImg<float> image(256,256,1,1,0);
+  // cimg_forXYC(image,x,y,c) { image(x,y,c) = rasterized_cost(x,y); }
+  // CImgDisplay main_disp(image,"Click a point");
+  // while (!main_disp.is_closed()) {
+  //   main_disp.wait();
+  //   if (main_disp.button()) {
+  //     const int x = main_disp.mouse_x();
+  //     const int y = main_disp.mouse_y();
+  //     if (x >=0 && y >=0 && x < image.width() && y < image.height()) {
+  //       cout << "Value at " << x << "," << y << " : " << image(x, y) << endl;
+  //     }
+  //   }
+  // }
    
   return(rasterized_cost);
 }
@@ -198,6 +198,7 @@ void SLAM::ObserveLaser(const vector<float>& ranges,
     rasterized_costs.push_back(rasterized_cost);
     robot_locs_.push_back(curr_robot_loc_);
     robot_angles_.push_back(curr_robot_angle_);
+    point_clouds.push_back(point_cloud_);
   }
   
   if ((curr_robot_loc_ - robot_locs_.back()).norm() > FLAGS_succ_trans_dist || fabs(curr_robot_angle_ - robot_angles_.back()) > FLAGS_succ_ang_dist) {
@@ -207,11 +208,13 @@ void SLAM::ObserveLaser(const vector<float>& ranges,
     // std::cout << FLAGS_succ_ang_dist << endl;
     std::vector<Vector2f> point_cloud_ = GetPointCloud(ranges, range_min, range_max, angle_min, angle_max);
     Eigen::MatrixXf rasterized_cost = GetRasterizedCost(point_cloud_, ranges, range_min, range_max, angle_min, angle_max);
+    
     std::tie(curr_robot_loc_, curr_robot_angle_) = GetMostLikelyPose(curr_robot_loc_, curr_robot_angle_, robot_locs_.back(),  robot_angles_.back(),
                                                                      rasterized_costs.back(), point_cloud_, range_max);
     rasterized_costs.push_back(rasterized_cost);
     robot_locs_.push_back(curr_robot_loc_);
     robot_angles_.push_back(curr_robot_angle_);
+    point_clouds.push_back(point_cloud_);
   }
 }
 
@@ -296,6 +299,7 @@ std::tuple<Eigen::Vector2f, float> SLAM::GetMostLikelyPose(const Eigen::Vector2f
           Vector2f candidate_pc_pt = CandidateR * pc_pt + Vector2f(CandidateX, CandidateY);
           Candidate_point_cloud_.push_back(candidate_pc_pt);
         }
+
         logLikelihoodObservationModel = GetObservationLikelihood(rasterized_cost, Candidate_point_cloud_, range_max);
         logLikelihoodMotionModel = std::log(likelihoodMotionModelQ*likelihoodMotionModelX[i]*likelihoodMotionModelY[j]);
         logLikelihoodSquare(i, j) = logLikelihoodMotionModel + logLikelihoodObservationModel;
@@ -381,6 +385,16 @@ vector<Vector2f> SLAM::GetMap() {
   vector<Vector2f> map;
   // Reconstruct the map as a single aligned point cloud from all saved poses
   // and their respective scans.
+  for(size_t pose_idx = 0; pose_idx < robot_locs_.size(); pose_idx++){
+    Vector2f robot_loc = robot_locs_[pose_idx];
+    float robot_angle = robot_angles_[pose_idx];
+    vector<Vector2f> point_cloud = point_clouds[pose_idx];
+    for(size_t pc_idx = 0; pc_idx < point_cloud.size(); pc_idx++){
+      Vector2f pc_pt = point_cloud[pc_idx];
+      Vector2f map_point = TransformAndEstimatePointCloud(robot_loc[0], robot_loc[1], robot_angle, pc_pt);
+      map.push_back(map_point);
+    }
+  }
   return map;
 }
 
