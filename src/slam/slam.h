@@ -58,6 +58,7 @@ class SLAM {
   Eigen::Vector2f prev_odom_loc_;
   float prev_odom_angle_;
   bool odom_initialized_; 
+  size_t time_stamp_ = 0;
 
 
   // custom slam variables 
