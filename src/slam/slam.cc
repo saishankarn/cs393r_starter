@@ -19,7 +19,8 @@
 \author  Joydeep Biswas, (C) 2019
 */
 //========================================================================
- 
+
+#include <stdio.h>
 #include <algorithm>
 #include <cmath>
 #include <math.h>
@@ -32,6 +33,7 @@
 #include "shared/math/math_util.h"
 #include "shared/math/statistics.h"
 #include "shared/util/timer.h"
+#include "visualization/CImg.h"
 
 #include "slam.h"
 
@@ -52,6 +54,8 @@ using std::string;
 using std::swap;
 using std::vector;
 using vector_map::VectorMap;
+using cimg_library::CImg;
+using cimg_library::CImgDisplay;
 
 DEFINE_double(map_resolution, 0.1, "Rasterized cost map resolution");
 DEFINE_double(sensor_std, 0.15, "standard deviation of sensor");
@@ -79,7 +83,6 @@ void SLAM::GetPose(Eigen::Vector2f* loc, float* angle) const {
   // Return the latest pose estimate of the robot.
   *loc = curr_robot_loc_;
   *angle = curr_robot_angle_;
-  std::cout << "SLAM::GetPose Pose: (" << curr_robot_loc_.x() << ", " << curr_robot_loc_.y() << ")" << endl;
 }
 
 float SLAM::GetObservationLikelihood(Eigen::MatrixXf& rasterized_cost,
@@ -150,6 +153,19 @@ Eigen::MatrixXf SLAM::GetRasterizedCost(const std::vector<Vector2f>& point_cloud
   }
   Eigen::MatrixXf rasterized_cost = Eigen::MatrixXf::Map(&log_likelihood_list[0], dim, dim);
   rasterized_cost.transposeInPlace();
+  CImg<float> image(256,256,1,1,0);
+  cimg_forXYC(image,x,y,c) { image(x,y,c) = rasterized_cost[x][y]]; }
+  CImgDisplay main_disp(image,"Click a point");
+  while (!main_disp.is_closed()) {
+    main_disp.wait();
+    if (main_disp.button()) {
+      const int x = main_disp.mouse_x();
+      const int y = main_disp.mouse_y();
+      if (x >=0 && y >=0 && x < image.width() && y < image.height()) {
+        cout << "Value at " << x << "," << y << " : " << image(x, y) << endl;
+      }
+    }
+  } 
   return(rasterized_cost);
 }
 
@@ -162,7 +178,7 @@ void SLAM::ObserveLaser(const vector<float>& ranges,
   // for SLAM. If decided to add, align it to the scan from the last saved pose,
   // and save both the scan and the optimized pose.
 
-  std::cout << "ObserveLaser Pose: (" << curr_robot_loc_.x() << ", " << curr_robot_loc_.y() << ")" << endl;
+  std::cout << "ObserveLaser Pose: (" << curr_robot_loc_.x() << ", " << curr_robot_loc_.y() << endl;
 
   if (robot_locs_.size() == 0) {
     std::vector<Vector2f> point_cloud_ = GetPointCloud(ranges, range_min, range_max, angle_min, angle_max);
@@ -170,7 +186,6 @@ void SLAM::ObserveLaser(const vector<float>& ranges,
     rasterized_costs.push_back(rasterized_cost);
     robot_locs_.push_back(curr_robot_loc_);
     robot_angles_.push_back(curr_robot_angle_);
-    point_clouds.push_back(point_cloud_);
   }
   
   if ((curr_robot_loc_ - robot_locs_.back()).norm() > FLAGS_succ_trans_dist || fabs(curr_robot_angle_ - robot_angles_.back()) > FLAGS_succ_ang_dist) {
@@ -185,9 +200,9 @@ void SLAM::ObserveLaser(const vector<float>& ranges,
     rasterized_costs.push_back(rasterized_cost);
     robot_locs_.push_back(curr_robot_loc_);
     robot_angles_.push_back(curr_robot_angle_);
-    point_clouds.push_back(point_cloud_);
   }
 }
+
 
 std::tuple<Eigen::Vector2f, float> SLAM::GetMostLikelyPose(const Eigen::Vector2f& currSLAMPoseLoc,                                                           
                                                            const float& currSLAMPoseAngle,
@@ -235,8 +250,8 @@ std::tuple<Eigen::Vector2f, float> SLAM::GetMostLikelyPose(const Eigen::Vector2f
   float likelihoodMotionModelQ;
   std::vector<float> likelihoodMotionModelX;
   std::vector<float> likelihoodMotionModelY;
-  Eigen::Vector2f relLoc = relSLAMPoseLoc;
-  float relAngle = relSLAMPoseAngle;
+  Eigen::Vector2f loc = relSLAMPoseLoc;
+  float angle = relSLAMPoseAngle;
 
   for(int k = 0; k < gridSizeQ; k++) {
     likelihoodMotionModelQ = 
@@ -261,8 +276,8 @@ std::tuple<Eigen::Vector2f, float> SLAM::GetMostLikelyPose(const Eigen::Vector2f
         else {
           if (logLikelihoodSquare(i, j) > maxLogLikelihood) {
             maxLogLikelihood = logLikelihoodSquare(i, j);
-            relLoc = Eigen::Vector2f((float)(gridXMin + i*FLAGS_gridDelX), (float)(gridYMin + j*FLAGS_gridDelY));
-            relAngle = (float)(gridQMin + k*FLAGS_gridDelQ);
+            loc = Eigen::Vector2f((float)(gridXMin + i*FLAGS_gridDelX), (float)(gridYMin + j*FLAGS_gridDelY));
+            angle = (float)(gridQMin + k*FLAGS_gridDelQ);
           }
         }
       }
@@ -275,7 +290,7 @@ std::tuple<Eigen::Vector2f, float> SLAM::GetMostLikelyPose(const Eigen::Vector2f
   // std::cout << "Previous pose: (" << prevSLAMPoseLoc.x() << ", " << prevSLAMPoseLoc.y() << ", "
   //           << math_util::RadToDeg(prevSLAMPoseAngle) << ")" << endl;
   // std::cout << "-------------------------------------------------------------------------" << endl;
-  return std::make_tuple(prevSLAMPoseLoc + relLoc, prevSLAMPoseAngle + relAngle);
+  return std::make_tuple(loc, angle);
 }
 
 
@@ -317,38 +332,17 @@ void SLAM::ObserveOdometry(const Vector2f& odom_loc, const float odom_angle) {
   std::tie(curr_robot_loc_, curr_robot_angle_) = DeterministicMotionModel(curr_robot_loc_, curr_robot_angle_,
     odom_loc, odom_angle, prev_odom_loc_, prev_odom_angle_);
 
-  std::cout << "ObserveOdometry Pose: (" << curr_robot_loc_.x() << ", " << curr_robot_loc_.y() << ")" << endl;
+  std::cout << "ObserveOdometry Pose: (" << curr_robot_loc_.x() << ", " << curr_robot_loc_.y() << endl;
 
   // updating the previous odometry values
   prev_odom_loc_ = odom_loc;
   prev_odom_angle_ = odom_angle;
 }
 
-Vector2f SLAM::TransformAndEstimatePointCloud(float x, float y, float theta, Vector2f pt){
-  Eigen::Matrix3f T;
-  T << cos(theta), -sin(theta), x, 
-       sin(theta), cos(theta), y, 
-       0, 0, 1;
-  T = T.inverse();
-  Eigen::Vector3f pt3(pt[0], pt[1], 1);
-  pt3 = T*pt3;
-  return Vector2f(pt3[0], pt3[1]);
-}
-
 vector<Vector2f> SLAM::GetMap() {
   vector<Vector2f> map;
   // Reconstruct the map as a single aligned point cloud from all saved poses
   // and their respective scans.
-  for(size_t pose_idx = 0; pose_idx < robot_locs_.size(); pose_idx++){
-    Vector2f robot_loc = robot_locs_[pose_idx];
-    float robot_angle = robot_angles_[pose_idx];
-    vector<Vector2f> point_cloud = point_clouds[pose_idx];
-    for(size_t pc_idx = 0; pc_idx < point_cloud.size(); pc_idx++){
-      Vector2f pc_pt = point_cloud[pc_idx];
-      Vector2f map_point = TransformAndEstimatePointCloud(robot_loc[0], robot_loc[1], robot_angle, pc_pt);
-      map.push_back(map_point);
-    }
-  }
   return map;
 }
 
