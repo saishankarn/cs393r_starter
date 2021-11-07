@@ -62,6 +62,7 @@ class SLAM {
 
 
   // custom slam variables 
+  int counter = 0;
   Eigen::Vector2f curr_robot_loc_;
   float curr_robot_angle_;
   std::vector<Eigen::Vector2f> robot_locs_;

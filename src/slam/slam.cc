@@ -38,7 +38,7 @@
 #include "slam.h"
 
 #include "vector_map/vector_map.h"
-
+#include <string>
 //#include<opencv2/highgui/highgui.hpp>
 //#include <opencv2/core/eigen.hpp>
 
@@ -57,8 +57,9 @@ using vector_map::VectorMap;
 using cimg_library::CImg;
 using cimg_library::CImgDisplay;
 
-DEFINE_double(map_resolution, 0.1, "Rasterized cost map resolution");
-DEFINE_double(sensor_std, 0.15, "standard deviation of sensor");
+DEFINE_double(map_resolution, 0.0125, "Rasterized cost map resolution");
+DEFINE_double(sensor_std, 0.005, "standard deviation of sensor");
+DEFINE_double(map_range, 5.0, "half map range");
 
 namespace slam {
 
@@ -90,11 +91,11 @@ float SLAM::GetObservationLikelihood(Eigen::MatrixXf& rasterized_cost,
                                     float range_max){
   // returns the observation likelihood scores of a given point_cloud_ using the rasterized_cost
   float obs_log_likelihood = 0.0;
-  int dim = int(2 * range_max / FLAGS_map_resolution); // 600
+  int dim = int(2 * FLAGS_map_range / FLAGS_map_resolution); // 600
   for(int pc_idx = 0; pc_idx < int(point_cloud_.size()); pc_idx++){
     Vector2f pt = point_cloud_[pc_idx];
-    Vector2f grid_pt(int((range_max - pt[0]) / FLAGS_map_resolution),
-                     int((range_max - pt[1]) / FLAGS_map_resolution));
+    Vector2f grid_pt(int((FLAGS_map_range - pt[0]) / FLAGS_map_resolution),
+                     int((FLAGS_map_range - pt[1]) / FLAGS_map_resolution));
     if (grid_pt[0] >= 0 && grid_pt[0] < dim){
       if (grid_pt[1] >= 0 && grid_pt[1] < dim){
         obs_log_likelihood += rasterized_cost(grid_pt[0], grid_pt[1]);
@@ -133,37 +134,33 @@ Eigen::MatrixXf SLAM::GetRasterizedCost(const std::vector<Vector2f>& point_cloud
   // 1. convert the lidar scan from ranges to (x, y) coordinates 
   
   // 2. calculating the sum log-likelihood scores
-  int dim = int(2 * range_max / FLAGS_map_resolution); // 600
+  int dim = int(2 * FLAGS_map_range / FLAGS_map_resolution); // 600
   std::vector<float> log_likelihood_list;
   for(int row_idx = 0; row_idx < dim; row_idx++){
     for(int col_idx = 0; col_idx < dim; col_idx++){
-      Vector2f grid_pt(range_max - row_idx * FLAGS_map_resolution, 
-                       range_max - col_idx * FLAGS_map_resolution);
+      Vector2f grid_pt(FLAGS_map_range - row_idx * FLAGS_map_resolution, 
+                       FLAGS_map_range - col_idx * FLAGS_map_resolution);
       float pdf_value = 0.0;
       for(int ranges_idx = 0; ranges_idx < int(ranges.size()); ranges_idx++){
         Vector2f lidar_pt = point_cloud_[ranges_idx];
+        //cout << (grid_pt - lidar_pt).norm() << '\n';
+        //cout << statistics::ProbabilityDensityGaussian((float)(grid_pt - lidar_pt).norm(), (float)0.0, (float)FLAGS_sensor_std) << '\n';
         pdf_value += statistics::ProbabilityDensityGaussian((float)(grid_pt - lidar_pt).norm(), (float)0.0, (float)FLAGS_sensor_std);
       }
       pdf_value = pdf_value/ranges.size();
+      //cout << std::log(pdf_value) << '\n';
       log_likelihood_list.push_back(std::log(pdf_value));
     }
   }
   Eigen::MatrixXf rasterized_cost = Eigen::MatrixXf::Map(&log_likelihood_list[0], dim, dim);
   rasterized_cost.transposeInPlace();
 
-  // CImg<float> image(256,256,1,1,0);
+  // CImg<float> image(dim,dim,1,1,0);
   // cimg_forXYC(image,x,y,c) { image(x,y,c) = rasterized_cost(x,y); }
-  // CImgDisplay main_disp(image,"Click a point");
-  // while (!main_disp.is_closed()) {
-  //   main_disp.wait();
-  //   if (main_disp.button()) {
-  //     const int x = main_disp.mouse_x();
-  //     const int y = main_disp.mouse_y();
-  //     if (x >=0 && y >=0 && x < image.width() && y < image.height()) {
-  //       cout << "Value at " << x << "," << y << " : " << image(x, y) << endl;
-  //     }
-  //   }
-  // }
+  // string fn = "/home/saisai/obs_images/test_img" + std::to_string(counter) + ".bmp";
+  // const char *c = fn.c_str();
+  // image.save(c);
+  // counter++;
    
   return(rasterized_cost);
 }
@@ -190,7 +187,8 @@ void SLAM::ObserveLaser(const vector<float>& ranges,
   // }
   // // printf("TimeStamp: %lu points\n", time_stamp_);
   // time_stamp_++;
-
+  // std::vector<Vector2f> point_cloud_ = GetPointCloud(ranges, range_min, range_max, angle_min, angle_max);
+  // GetRasterizedCost(point_cloud_, ranges, range_min, range_max, angle_min, angle_max);
 
   if (robot_locs_.size() == 0) {
     std::vector<Vector2f> point_cloud_ = GetPointCloud(ranges, range_min, range_max, angle_min, angle_max);
