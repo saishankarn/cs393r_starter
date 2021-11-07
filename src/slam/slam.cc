@@ -98,10 +98,12 @@ float SLAM::GetObservationLikelihood(Eigen::MatrixXf& rasterized_cost,
                      int((FLAGS_map_range - pt[1]) / FLAGS_map_resolution));
     if (grid_pt[0] >= 0 && grid_pt[0] < dim){
       if (grid_pt[1] >= 0 && grid_pt[1] < dim){
-        obs_log_likelihood += rasterized_cost(grid_pt[0], grid_pt[1]);
+        obs_log_likelihood += std::min(std::max(rasterized_cost(grid_pt[0], grid_pt[1]), (float)-30.0), (float)30.0);
       }
     }
   }
+  obs_log_likelihood = obs_log_likelihood/10000;
+  cout << "Observation log likelihood: " << obs_log_likelihood << '\n';
   return obs_log_likelihood;
 }
 
@@ -148,7 +150,7 @@ Eigen::MatrixXf SLAM::GetRasterizedCost(const std::vector<Vector2f>& point_cloud
         pdf_value += statistics::ProbabilityDensityGaussian((float)(grid_pt - lidar_pt).norm(), (float)0.0, (float)FLAGS_sensor_std);
       }
       pdf_value = pdf_value/ranges.size();
-      //cout << std::log(pdf_value) << '\n';
+      // cout << "Rasterized look up log pdf: " << std::log(pdf_value) << '\n';
       log_likelihood_list.push_back(std::log(pdf_value));
     }
   }
