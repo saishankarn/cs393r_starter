@@ -24,9 +24,6 @@
 
 #include "eigen3/Eigen/Dense"
 #include "eigen3/Eigen/Geometry"
-#include "visualization/visualization.h"
-#include "amrl_msgs/VisualizationMsg.h"
-using amrl_msgs::VisualizationMsg;
 
 #ifndef SRC_SLAM_H_
 #define SRC_SLAM_H_
@@ -43,8 +40,7 @@ class SLAM {
                     float range_min,
                     float range_max,
                     float angle_min,
-                    float angle_max,
-                    VisualizationMsg& vis_msg_);
+                    float angle_max);
 
   // Observe new odometry-reported location.
   void ObserveOdometry(const Eigen::Vector2f& odom_loc,
@@ -100,8 +96,7 @@ class SLAM {
                                                            const float& prevSLAMPoseAngle,
                                                            Eigen::MatrixXf& rasterized_cost,
                                                            const std::vector<Eigen::Vector2f>& point_cloud_,
-                                                           const float& range_max,
-                                                           VisualizationMsg& vis_msg_);
+                                                           const float& range_max);
 
   std::tuple<Eigen::Vector2f, float> DeterministicMotionModel(const Eigen::Vector2f& prevLoc,
                                                  const float prevAngle,

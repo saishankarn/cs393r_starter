@@ -95,7 +95,7 @@ void PublishMap() {
   }
   t_last = GetMonotonicTime();
   vis_msg_.header.stamp = ros::Time::now();
-  // ClearVisualizationMsg(vis_msg_);
+  ClearVisualizationMsg(vis_msg_);
 
   const vector<Vector2f> map = slam_.GetMap();
   //printf("Map: %lu points\n", map.size());
@@ -121,17 +121,12 @@ void LaserCallback(const sensor_msgs::LaserScan& msg) {
     //printf("Laser t=%f\n", msg.header.stamp.toSec());
   }
   last_laser_msg_ = msg;
-  vis_msg_.header.stamp = ros::Time::now();
-  ClearVisualizationMsg(vis_msg_);
   slam_.ObserveLaser(
       msg.ranges,
       msg.range_min,
       msg.range_max,
       msg.angle_min,
-      msg.angle_max,
-      vis_msg_);
-  visualization::DrawParticle(Eigen::Vector2f(1.0,1.0), 0, vis_msg_);
-  visualization_publisher_.publish(vis_msg_);
+      msg.angle_max);
   PublishMap();
   PublishPose();
 }
