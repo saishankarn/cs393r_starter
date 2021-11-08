@@ -41,7 +41,10 @@
 #include <string>
 //#include<opencv2/highgui/highgui.hpp>
 //#include <opencv2/core/eigen.hpp>
-
+#include "ros/ros.h"
+#include "rosbag/bag.h"
+#include "rosbag/view.h"
+#include "ros/package.h"
 using namespace math_util;
 using Eigen::Affine2f;
 using Eigen::Rotation2Df;
@@ -56,22 +59,23 @@ using std::vector;
 using vector_map::VectorMap;
 using cimg_library::CImg;
 using cimg_library::CImgDisplay;
+extern ros::Publisher visualization_publisher_;
 
-DEFINE_double(map_resolution, 0.0125, "Rasterized cost map resolution");
-DEFINE_double(sensor_std, 0.005, "standard deviation of sensor");
+DEFINE_double(map_resolution, 0.02, "Rasterized cost map resolution. Width of cell in meters");
+DEFINE_double(sensor_std, 0.05, "standard deviation of sensor");
 DEFINE_double(map_range, 5.0, "half map range");
 
 namespace slam {
 
-DEFINE_double(gridDelX, 0.05, "5 cm");
-DEFINE_double(gridDelY, 0.05, "5 cm");
-DEFINE_double(gridDelQ, math_util::DegToRad(5.0), "5 deg");
+DEFINE_double(gridDelX, 0.01, "1 cm");
+DEFINE_double(gridDelY, 0.01, "1 cm");
+DEFINE_double(gridDelQ, math_util::DegToRad(1.0), "1 deg");
 DEFINE_double(succ_trans_dist, 0.5, "50 cm");
 DEFINE_double(succ_ang_dist, math_util::DegToRad(45.0), "45 deg");
 DEFINE_double(std_k1, 0.2, "Translation dependence on translation standard deviation");
 DEFINE_double(std_k2, 0.2, "Rotation dependence on translation standard deviation");
 DEFINE_double(std_k3, 0.2, "Translation dependence on rotation standard deviation");
-DEFINE_double(std_k4, 0.7, "Rotation dependence on rotation standard deviation");
+DEFINE_double(std_k4, 0.2, "Rotation dependence on rotation standard deviation");
 
 SLAM::SLAM() :
     prev_odom_loc_(0, 0),
@@ -98,12 +102,12 @@ float SLAM::GetObservationLikelihood(Eigen::MatrixXf& rasterized_cost,
                      int((FLAGS_map_range - pt[1]) / FLAGS_map_resolution));
     if (grid_pt[0] >= 0 && grid_pt[0] < dim){
       if (grid_pt[1] >= 0 && grid_pt[1] < dim){
-        obs_log_likelihood += std::min(std::max(rasterized_cost(grid_pt[0], grid_pt[1]), (float)-30.0), (float)30.0);
+        obs_log_likelihood += std::min(std::max(rasterized_cost(grid_pt[0], grid_pt[1]), (float)-80.0), (float)30.0);
       }
     }
   }
-  obs_log_likelihood = obs_log_likelihood/10000;
-  cout << "Observation log likelihood: " << obs_log_likelihood << '\n';
+  obs_log_likelihood = obs_log_likelihood/900;
+  // cout << "Observation log likelihood: " << obs_log_likelihood << '\n';
   return obs_log_likelihood;
 }
 
@@ -137,6 +141,7 @@ Eigen::MatrixXf SLAM::GetRasterizedCost(const std::vector<Vector2f>& point_cloud
   
   // 2. calculating the sum log-likelihood scores
   int dim = int(2 * FLAGS_map_range / FLAGS_map_resolution); // 600
+  float log_pdf_value;
   std::vector<float> log_likelihood_list;
   for(int row_idx = 0; row_idx < dim; row_idx++){
     for(int col_idx = 0; col_idx < dim; col_idx++){
@@ -150,12 +155,15 @@ Eigen::MatrixXf SLAM::GetRasterizedCost(const std::vector<Vector2f>& point_cloud
         pdf_value += statistics::ProbabilityDensityGaussian((float)(grid_pt - lidar_pt).norm(), (float)0.0, (float)FLAGS_sensor_std);
       }
       pdf_value = pdf_value/ranges.size();
-      // cout << "Rasterized look up log pdf: " << std::log(pdf_value) << '\n';
-      log_likelihood_list.push_back(std::log(pdf_value));
+      log_pdf_value = std::log(pdf_value);
+      // if (log_pdf_value != -INFINITY)
+      //   std::cout << "Rasterized look up log pdf: " << log_pdf_value << '\n';
+      log_likelihood_list.push_back(log_pdf_value);
     }
   }
   Eigen::MatrixXf rasterized_cost = Eigen::MatrixXf::Map(&log_likelihood_list[0], dim, dim);
   rasterized_cost.transposeInPlace();
+  // std::cout << rasterized_cost << endl;
 
   // CImg<float> image(dim,dim,1,1,0);
   // cimg_forXYC(image,x,y,c) { image(x,y,c) = rasterized_cost(x,y); }
@@ -171,26 +179,11 @@ void SLAM::ObserveLaser(const vector<float>& ranges,
                         float range_min,
                         float range_max,
                         float angle_min,
-                        float angle_max) {
+                        float angle_max,
+                        VisualizationMsg& vis_msg_) {
   // A new laser scan has been observed. Decide whether to add it as a pose
   // for SLAM. If decided to add, align it to the scan from the last saved pose,
   // and save both the scan and the optimized pose.
-
-  // std::cout << "ObserveLaser Pose: (" << curr_robot_loc_.x() << ", " << curr_robot_loc_.y() << ")" << endl;
-
-  // if (time_stamp_ % 100 == 0) {
-  //   std::vector<Vector2f> point_cloud_ = GetPointCloud(ranges, range_min, range_max, angle_min, angle_max);
-  //   // Eigen::MatrixXf rasterized_cost = GetRasterizedCost(point_cloud_, ranges, range_min, range_max, angle_min, angle_max);
-  //   // rasterized_costs.push_back(rasterized_cost);
-  //   robot_locs_.push_back(curr_robot_loc_);
-  //   robot_angles_.push_back(curr_robot_angle_);
-  //   point_clouds.push_back(point_cloud_);
-  //   printf("TimeStamp: %lu points\n", time_stamp_);
-  // }
-  // // printf("TimeStamp: %lu points\n", time_stamp_);
-  // time_stamp_++;
-  // std::vector<Vector2f> point_cloud_ = GetPointCloud(ranges, range_min, range_max, angle_min, angle_max);
-  // GetRasterizedCost(point_cloud_, ranges, range_min, range_max, angle_min, angle_max);
 
   if (robot_locs_.size() == 0) {
     std::vector<Vector2f> point_cloud_ = GetPointCloud(ranges, range_min, range_max, angle_min, angle_max);
@@ -209,25 +202,31 @@ void SLAM::ObserveLaser(const vector<float>& ranges,
     std::vector<Vector2f> point_cloud_ = GetPointCloud(ranges, range_min, range_max, angle_min, angle_max);
     Eigen::MatrixXf rasterized_cost = GetRasterizedCost(point_cloud_, ranges, range_min, range_max, angle_min, angle_max);
     
+    Eigen::Vector2f curr_robot_loc_new_;
+    float curr_robot_angle_new_;
+    std::tie(curr_robot_loc_new_, curr_robot_angle_new_) = GetMostLikelyPose(curr_robot_loc_, curr_robot_angle_, robot_locs_.back(),  robot_angles_.back(),
+                                                                     rasterized_costs.back(), point_cloud_, range_max, vis_msg_);
+    
     std::cout << "Previous pose: (" << robot_locs_.back().x() << ", " << robot_locs_.back().y() << ", "
             << math_util::RadToDeg(robot_angles_.back()) << ")" << endl;
     std::cout << "Predicted pose: (" << curr_robot_loc_.x() << ", " << curr_robot_loc_.y() << ", "
             << math_util::RadToDeg(curr_robot_angle_) << ")" << endl;
-    
-    std::tie(curr_robot_loc_, curr_robot_angle_) = GetMostLikelyPose(curr_robot_loc_, curr_robot_angle_, robot_locs_.back(),  robot_angles_.back(),
-                                                                     rasterized_costs.back(), point_cloud_, range_max);
-    
-    std::cout << "Updated pose: (" << curr_robot_loc_.x() << ", " << curr_robot_loc_.y() << ", "
-            << math_util::RadToDeg(curr_robot_angle_) << ")" << endl;
+    std::cout << "Updated pose: (" << curr_robot_loc_new_.x() << ", " << curr_robot_loc_new_.y() << ", "
+            << math_util::RadToDeg(curr_robot_angle_new_) << ")" << endl;
     std::cout << "" << endl;
     
+    curr_robot_loc_ = curr_robot_loc_new_;
+    curr_robot_angle_ = curr_robot_angle_new_;
     rasterized_costs.push_back(rasterized_cost);
     robot_locs_.push_back(curr_robot_loc_);
     robot_angles_.push_back(curr_robot_angle_);
     point_clouds.push_back(point_cloud_);
   }
 }
-
+ void dummyFun(const Eigen::Vector2f& p0,
+              const Eigen::Vector2f& p1,
+              uint32_t color,
+              amrl_msgs::VisualizationMsg& msg){};
 
 std::tuple<Eigen::Vector2f, float> SLAM::GetMostLikelyPose(const Eigen::Vector2f& currSLAMPoseLoc,                                                           
                                                            const float& currSLAMPoseAngle,
@@ -235,7 +234,8 @@ std::tuple<Eigen::Vector2f, float> SLAM::GetMostLikelyPose(const Eigen::Vector2f
                                                            const float& prevSLAMPoseAngle,
                                                            Eigen::MatrixXf& rasterized_cost,
                                                            const std::vector<Eigen::Vector2f>& point_cloud_,
-                                                           const float& range_max){
+                                                           const float& range_max,
+                                                           VisualizationMsg& vis_msg_){
   // Defining the likelihood cube. The size of the cube depends on the magnitude
   // of relative motion measured or more precisely the difference in the odometry
   // readings between successive poses.
@@ -253,16 +253,12 @@ std::tuple<Eigen::Vector2f, float> SLAM::GetMostLikelyPose(const Eigen::Vector2f
   sigmaRot = std::max(sigmaRot, (float)0.001);
 
   float numOfSigmas = 2;
-  int gridSizeX;
-  int gridSizeY;
-  int gridSizeQ;
-  std::remquo(numOfSigmas*sigmaTrans, FLAGS_gridDelX, &gridSizeX);
-  std::remquo(numOfSigmas*sigmaTrans, FLAGS_gridDelY, &gridSizeY);
-  std::remquo(numOfSigmas*sigmaRot, FLAGS_gridDelQ, &gridSizeQ);
-  gridSizeX = 2*gridSizeX + 1;
-  gridSizeY = 2*gridSizeY + 1;
-  gridSizeQ = 2*gridSizeQ + 1;
-
+  int gridSizeX = 2*std::floor(numOfSigmas*sigmaTrans/FLAGS_gridDelX) + 1;
+  gridSizeX = 3;
+  int gridSizeY = 2*std::floor(numOfSigmas*sigmaTrans/FLAGS_gridDelY) + 1;
+  gridSizeY = 3;
+  int gridSizeQ = 2*std::floor(numOfSigmas*sigmaRot/FLAGS_gridDelQ) + 1;
+  gridSizeQ = 3;
 
   float gridXMin = relSLAMPoseLoc.x() - ((gridSizeX - 1)/2)*FLAGS_gridDelX;
   float gridYMin = relSLAMPoseLoc.y() - ((gridSizeY - 1)/2)*FLAGS_gridDelY;
@@ -316,6 +312,7 @@ std::tuple<Eigen::Vector2f, float> SLAM::GetMostLikelyPose(const Eigen::Vector2f
         logLikelihoodObservationModel = GetObservationLikelihood(rasterized_cost, Candidate_point_cloud_, range_max);
         logLikelihoodMotionModel = std::log(likelihoodMotionModelQ*likelihoodMotionModelX[i]*likelihoodMotionModelY[j]);
         logLikelihoodSquare(i, j) = logLikelihoodMotionModel + logLikelihoodObservationModel;
+
         if(k == 0 && i == 0 && j == 0) {
           maxLogLikelihood = logLikelihoodSquare(i, j);
           corrLLOM = logLikelihoodObservationModel;
@@ -332,12 +329,56 @@ std::tuple<Eigen::Vector2f, float> SLAM::GetMostLikelyPose(const Eigen::Vector2f
         }
       }
     }
+
+//  void DrawLine(const Eigen::Vector2f& p0,
+//               const Eigen::Vector2f& p1,
+//               uint32_t color,
+//               amrl_msgs::VisualizationMsg& msg);
+
   logLikelihoodCube.push_back(logLikelihoodSquare);
+  for (int k = 0; k < gridSizeQ; k++)
+  {
+    float delQ = (float)(gridQMin + k*FLAGS_gridDelQ);
+    double cosAngleCandidate = cos(relSLAMPoseAngle + delQ);
+    double sinAngleCandidate = sin(relSLAMPoseAngle + delQ);
+    Eigen::Matrix2f CandidateR;
+    CandidateR << cosAngleCandidate, -sinAngleCandidate, 
+                  sinAngleCandidate, cosAngleCandidate;
+    for (int i = 0; i < gridSizeX; i++)
+    {
+      float CandidateX = relSLAMPoseLoc.x() + (float)(gridXMin + i*FLAGS_gridDelX);
+      for (int j = 0; j < gridSizeY; j++)
+      {
+        auto llSquare = logLikelihoodCube[k];
+        float eval = llSquare(i,j);
+        float eval2 = eval;
+        float CandidateY = relSLAMPoseLoc.y() + (float)(gridYMin + j*FLAGS_gridDelY);
+        float magn = (std::max(std::min(eval2,10.0F),-10.0F)+10.0F)/20.0F;
+        visualization::DrawLine(prevSLAMPoseLoc + Vector2f(CandidateX, CandidateY), prevSLAMPoseLoc + Vector2f(CandidateX, CandidateY) + 1*CandidateR * Vector2f(0.2, 0.0), 0x4287F5, vis_msg_);
+        visualization::DrawLine(currSLAMPoseLoc, currSLAMPoseLoc + Vector2f(1.0, 1.0), 0x4287F5, vis_msg_);
+
+        visualization::DrawLine(Vector2f(0.0, 0.0), Vector2f(1.0, 1.0), 0x4287F5, vis_msg_);
+        //visualization::DrawParticle(Eigen::Vector2f(1.0,-1.0), 0, vis_msg_);
+        visualization_publisher_.publish(vis_msg_);
+        std::cout << prevSLAMPoseLoc.x() + CandidateX << endl;
+        std::cout << prevSLAMPoseLoc.y() + CandidateY << endl;
+        
+        std::cout << prevSLAMPoseLoc.x() + CandidateX + (1*CandidateR * Vector2f(1.0, 0.0)).x() << endl;
+        std::cout << prevSLAMPoseLoc.y() + CandidateY + (1*CandidateR * Vector2f(1.0, 0.0)).y()  << endl;
+        std::cout << magn << endl;
+      }    
+    }  
+  }
+  
   //std::cout << logLikelihoodCube[k] << endl;
   }
   std::cout << "MaxLogLikelihood of " << maxLogLikelihood << " observed in Grid of size " << 
     "(" << gridSizeX << ", " << gridSizeY << ", " << gridSizeQ << ")" << endl;
-    std::cout << "Motion Model MaxLogLikelihood: " << corrLLMM << ", Observation Model MaxLogLikelihood: " << corrLLOM << endl;
+  std::cout << "GridX: (" << gridXMin << ", " <<  gridXMin + gridSizeX*FLAGS_gridDelX << ", " << FLAGS_gridDelX << "), " <<
+    "GridY: (" << gridYMin << ", " <<  gridYMin + gridSizeY*FLAGS_gridDelY << ", " << FLAGS_gridDelY << "), " <<
+    "GridQ: (" << gridQMin << ", " <<  gridQMin + gridSizeQ*FLAGS_gridDelQ << ", " << FLAGS_gridDelQ << ") " << endl;
+  std::cout << "Motion Model MaxLogLikelihood: " << corrLLMM << ", Observation Model MaxLogLikelihood: " << corrLLOM << endl;
+  
   // std::cout << "Current pose: (" << currSLAMPoseLoc.x() << ", " << currSLAMPoseLoc.y() << ", "
   //           << math_util::RadToDeg(currSLAMPoseAngle) << ")" << endl;
   // std::cout << "Previous pose: (" << prevSLAMPoseLoc.x() << ", " << prevSLAMPoseLoc.y() << ", "
