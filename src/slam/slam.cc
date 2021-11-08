@@ -220,7 +220,9 @@ std::tuple<Eigen::Vector2f, float> SLAM::GetMostLikelyPose(const Eigen::Vector2f
   // The plausible relative transforms are assumed to be within 95%/ 2 sigma of the 
   // gaussin centered at the relative odometry reading.
   
-  Eigen::Vector2f relSLAMPoseLoc = currSLAMPoseLoc - prevSLAMPoseLoc;
+  Eigen::Rotation2Df prevSLAMPoseRInv(-prevSLAMPoseAngle);
+  Eigen::Vector2f relSLAMPoseLoc = prevSLAMPoseRInv*(currSLAMPoseLoc - prevSLAMPoseLoc);
+  
   float relSLAMPoseAngle = currSLAMPoseAngle - prevSLAMPoseAngle;
   relSLAMPoseAngle = (fabs(fabs(relSLAMPoseAngle) - 2*M_PI) < fabs(relSLAMPoseAngle)) ? 
                  signbit(relSLAMPoseAngle)*(fabs(relSLAMPoseAngle) -2*M_PI) : relSLAMPoseAngle;
@@ -238,14 +240,11 @@ std::tuple<Eigen::Vector2f, float> SLAM::GetMostLikelyPose(const Eigen::Vector2f
   int gridSizeQ = 2*std::floor(numOfSigmas*sigmaRot/FLAGS_gridDelQ) + 1;
   gridSizeQ = 41;
 
-  Eigen::Matrix2f prevSLAMPoseAngleR;
-  prevSLAMPoseAngleR << cos(prevSLAMPoseAngle), -sin(prevSLAMPoseAngle), 
-                  sin(prevSLAMPoseAngle), cos(prevSLAMPoseAngle);
+  Eigen::Rotation2Df prevSLAMPoseR(prevSLAMPoseAngle);
 
-  Eigen::Matrix2f relSLAMPoseAngleR;
-  relSLAMPoseAngleR << cos(relSLAMPoseAngle), -sin(relSLAMPoseAngle), 
-                       sin(relSLAMPoseAngle), cos(relSLAMPoseAngle);
-  Eigen::Vector2f gridPMin = relSLAMPoseLoc - relSLAMPoseAngleR*Eigen::Vector2f(((gridSizeX - 1)/2)*FLAGS_gridDelX,
+  Eigen::Rotation2Df relSLAMPoseR(relSLAMPoseAngle);
+
+  Eigen::Vector2f gridPMin = relSLAMPoseLoc - relSLAMPoseR*Eigen::Vector2f(((gridSizeX - 1)/2)*FLAGS_gridDelX,
                                                                 ((gridSizeY - 1)/2)*FLAGS_gridDelY);
   float gridXMin = gridPMin.x();
   float gridYMin = gridPMin.y();
@@ -269,15 +268,14 @@ std::tuple<Eigen::Vector2f, float> SLAM::GetMostLikelyPose(const Eigen::Vector2f
     float CandidateQ = (float)(gridQMin + k*FLAGS_gridDelQ);
     likelihoodMotionModelQ = 
       statistics::ProbabilityDensityGaussian(CandidateQ, relSLAMPoseAngle, sigmaRot);
-    Eigen::Matrix2f CandidateR;
-    CandidateR << cos(CandidateQ), -sin(CandidateQ), 
-                  sin(CandidateQ), cos(CandidateQ);
+    
+    Eigen::Rotation2Df CandidateR(CandidateQ);
     
     for(int i = 0; i < gridSizeX; i++) {
       float CandidateX;
       Eigen::Vector2f CandidateP;
       for(int j = 0; j < gridSizeY; j++) {
-        CandidateP = gridPMin + relSLAMPoseAngleR*Eigen::Vector2f((float)i*FLAGS_gridDelX,
+        CandidateP = gridPMin + relSLAMPoseR*Eigen::Vector2f((float)i*FLAGS_gridDelX,
                                                                                   (float)j*FLAGS_gridDelY);
         CandidateX = CandidateP.x();
         float CandidateY = CandidateP.y();
@@ -286,7 +284,7 @@ std::tuple<Eigen::Vector2f, float> SLAM::GetMostLikelyPose(const Eigen::Vector2f
         }
         if(k == 0 && i == 0) {
           likelihoodMotionModelY.push_back(statistics::ProbabilityDensityGaussian(CandidateY, relSLAMPoseLoc.y(), sigmaTrans));
-          std::cout << "Y" << j << ": " << (prevSLAMPoseLoc + prevSLAMPoseAngleR*CandidateP).y() << ", ";
+          std::cout << "Y" << j << ": " << (prevSLAMPoseLoc + prevSLAMPoseR*CandidateP).y() << ", ";
         }
 
         std::vector<Eigen::Vector2f> Candidate_point_cloud_;
@@ -320,7 +318,7 @@ std::tuple<Eigen::Vector2f, float> SLAM::GetMostLikelyPose(const Eigen::Vector2f
         std::cout << endl;
       }
       if (k==0) {
-      std::cout << "X" << i << ": " << (prevSLAMPoseLoc + prevSLAMPoseAngleR*CandidateP).x() << ", ";
+      std::cout << "X" << i << ": " << (prevSLAMPoseLoc + prevSLAMPoseR*CandidateP).x() << ", ";
       } 
     }
     if (k==0) {
@@ -336,7 +334,7 @@ std::tuple<Eigen::Vector2f, float> SLAM::GetMostLikelyPose(const Eigen::Vector2f
     "GridY: (" << gridYMin << ", " <<  gridYMin + gridSizeY*FLAGS_gridDelY << ", " << FLAGS_gridDelY << "), " <<
     "GridQ: (" << gridQMin << ", " <<  gridQMin + gridSizeQ*FLAGS_gridDelQ << ", " << FLAGS_gridDelQ << ") " << endl;
   std::cout << "Motion Model MaxLogLikelihood: " << corrLLMM << ", Observation Model MaxLogLikelihood: " << corrLLOM << endl;
-  return std::make_tuple(prevSLAMPoseLoc + prevSLAMPoseAngleR*relLoc, prevSLAMPoseAngle + relAngle);//
+  return std::make_tuple(prevSLAMPoseLoc + prevSLAMPoseR*relLoc, prevSLAMPoseAngle + relAngle);
 }
 
 
