@@ -63,8 +63,8 @@ DEFINE_double(map_range, 5.0, "half map range");
 
 namespace slam {
 
-DEFINE_double(gridDelX, 0.01, "1 cm");
-DEFINE_double(gridDelY, 0.01, "1 cm");
+DEFINE_double(gridDelX, 0.02, "1 cm");
+DEFINE_double(gridDelY, 0.02, "1 cm");
 DEFINE_double(gridDelQ, math_util::DegToRad(1.0), "1 deg");
 DEFINE_double(succ_trans_dist, 0.5, "50 cm");
 DEFINE_double(succ_ang_dist, math_util::DegToRad(45.0), "45 deg");
@@ -89,21 +89,21 @@ void SLAM::GetPose(Eigen::Vector2f* loc, float* angle) const {
 float SLAM::GetObservationLikelihood(Eigen::MatrixXf& rasterized_cost,
                                     vector<Vector2f> point_cloud_,
                                     float range_max){
-  // returns the observation likelihood scores of a given point_cloud_ using the rasterized_cost
+  // Returns the observation likelihood scores of a given point_cloud_ using the rasterized_cost.
   float obs_log_likelihood = 0.0;
-  int dim = int(2 * FLAGS_map_range / FLAGS_map_resolution); // 600
+  int dim = rasterized_cost.cols();
+  float minXorY =  -((dim - 1)/2)*FLAGS_map_resolution;
   for(int pc_idx = 0; pc_idx < int(point_cloud_.size()); pc_idx++){
     Vector2f pt = point_cloud_[pc_idx];
-    Vector2f grid_pt(int((FLAGS_map_range - pt[0]) / FLAGS_map_resolution),
-                     int((FLAGS_map_range - pt[1]) / FLAGS_map_resolution));
+    Vector2f grid_pt(std::round((pt[1] - minXorY) / FLAGS_map_resolution),
+                     std::round((pt[0] - minXorY) / FLAGS_map_resolution));
     if (grid_pt[0] >= 0 && grid_pt[0] < dim){
       if (grid_pt[1] >= 0 && grid_pt[1] < dim){
-        obs_log_likelihood += std::min(std::max(rasterized_cost(grid_pt[0], grid_pt[1]), (float)-80.0), (float)30.0);
+        obs_log_likelihood += std::max(rasterized_cost(grid_pt[0], grid_pt[1]), (float)-80.0);
       }
     }
   }
-  obs_log_likelihood = obs_log_likelihood/900;
-  // cout << "Observation log likelihood: " << obs_log_likelihood << '\n';
+  obs_log_likelihood = obs_log_likelihood/800;
   return obs_log_likelihood;
 }
 
@@ -112,7 +112,7 @@ std::vector<Vector2f> SLAM::GetPointCloud(const vector<float>& ranges,
                                     float range_max,
                                     float angle_min,
                                     float angle_max){
-  // converts the lidar range scans to point cloud (x, y) format
+  // Converts the lidar range scans to point cloud (x, y) format.
   const Vector2f kLaserLoc(0.2, 0);
   std::vector<Vector2f> point_cloud_;
   float angle_increment = (angle_max - angle_min) / ranges.size();
@@ -136,38 +136,26 @@ Eigen::MatrixXf SLAM::GetRasterizedCost(const std::vector<Vector2f>& point_cloud
   // 1. convert the lidar scan from ranges to (x, y) coordinates 
   
   // 2. calculating the sum log-likelihood scores
-  int dim = int(2 * FLAGS_map_range / FLAGS_map_resolution); // 600
+  int dim = floor(2 * FLAGS_map_range / FLAGS_map_resolution) + 1; // 600
   float log_pdf_value;
+  float minXorY =  -((dim - 1)/2)*FLAGS_map_resolution;
+  Eigen::MatrixXf rasterized_cost;
+  rasterized_cost.resize(dim, dim);
   std::vector<float> log_likelihood_list;
   for(int row_idx = 0; row_idx < dim; row_idx++){
     for(int col_idx = 0; col_idx < dim; col_idx++){
-      Vector2f grid_pt(FLAGS_map_range - row_idx * FLAGS_map_resolution, 
-                       FLAGS_map_range - col_idx * FLAGS_map_resolution);
+      Vector2f grid_pt(minXorY + col_idx * FLAGS_map_resolution, 
+                       minXorY + row_idx * FLAGS_map_resolution);
       float pdf_value = 0.0;
       for(int ranges_idx = 0; ranges_idx < int(ranges.size()); ranges_idx++){
         Vector2f lidar_pt = point_cloud_[ranges_idx];
-        //cout << (grid_pt - lidar_pt).norm() << '\n';
-        //cout << statistics::ProbabilityDensityGaussian((float)(grid_pt - lidar_pt).norm(), (float)0.0, (float)FLAGS_sensor_std) << '\n';
         pdf_value += statistics::ProbabilityDensityGaussian((float)(grid_pt - lidar_pt).norm(), (float)0.0, (float)FLAGS_sensor_std);
       }
       pdf_value = pdf_value/ranges.size();
       log_pdf_value = std::log(pdf_value);
-      // if (log_pdf_value != -INFINITY)
-      //   std::cout << "Rasterized look up log pdf: " << log_pdf_value << '\n';
-      log_likelihood_list.push_back(log_pdf_value);
+      rasterized_cost(row_idx, col_idx) = log_pdf_value;
     }
   }
-  Eigen::MatrixXf rasterized_cost = Eigen::MatrixXf::Map(&log_likelihood_list[0], dim, dim);
-  rasterized_cost.transposeInPlace();
-  // std::cout << rasterized_cost << endl;
-
-  // CImg<float> image(dim,dim,1,1,0);
-  // cimg_forXYC(image,x,y,c) { image(x,y,c) = rasterized_cost(x,y); }
-  // string fn = "/home/saisai/obs_images/test_img" + std::to_string(counter) + ".bmp";
-  // const char *c = fn.c_str();
-  // image.save(c);
-  // counter++;
-   
   return(rasterized_cost);
 }
 
@@ -302,6 +290,7 @@ std::tuple<Eigen::Vector2f, float> SLAM::GetMostLikelyPose(const Eigen::Vector2f
         logLikelihoodObservationModel = GetObservationLikelihood(rasterized_cost, Candidate_point_cloud_, range_max);
         logLikelihoodMotionModel = std::log(likelihoodMotionModelQ*likelihoodMotionModelX[i]*likelihoodMotionModelY[j]);
         logLikelihoodSquare(i, j) = logLikelihoodMotionModel + logLikelihoodObservationModel;
+        logLikelihoodSquare(i, j) = logLikelihoodObservationModel;
 
         if(k == 0 && i == 0 && j == 0) {
           maxLogLikelihood = logLikelihoodSquare(i, j);
@@ -337,7 +326,10 @@ std::tuple<Eigen::Vector2f, float> SLAM::GetMostLikelyPose(const Eigen::Vector2f
     "GridY: (" << gridYMin << ", " <<  gridYMin + gridSizeY*FLAGS_gridDelY << ", " << FLAGS_gridDelY << "), " <<
     "GridQ: (" << gridQMin << ", " <<  gridQMin + gridSizeQ*FLAGS_gridDelQ << ", " << FLAGS_gridDelQ << ") " << endl;
   std::cout << "Motion Model MaxLogLikelihood: " << corrLLMM << ", Observation Model MaxLogLikelihood: " << corrLLOM << endl;
-  return std::make_tuple(prevSLAMPoseLoc + relLoc, prevSLAMPoseAngle + relAngle);
+  Eigen::Matrix2f prevSLAMPoseR;
+  prevSLAMPoseR << cos(prevSLAMPoseAngle), -sin(prevSLAMPoseAngle), 
+                  sin(prevSLAMPoseAngle), cos(prevSLAMPoseAngle);
+  return std::make_tuple(prevSLAMPoseLoc + prevSLAMPoseR*relLoc, prevSLAMPoseAngle + relAngle);//
 }
 
 
