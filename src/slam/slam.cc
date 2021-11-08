@@ -58,7 +58,7 @@ using cimg_library::CImg;
 using cimg_library::CImgDisplay;
 
 DEFINE_double(map_resolution, 0.02, "Rasterized cost map resolution. Width of cell in meters");
-DEFINE_double(sensor_std, 0.05, "standard deviation of sensor");
+DEFINE_double(sensor_std, 0.01, "standard deviation of sensor");
 DEFINE_double(map_range, 5.0, "half map range");
 
 namespace slam {
@@ -67,11 +67,11 @@ DEFINE_double(gridDelX, 0.02, "1 cm");
 DEFINE_double(gridDelY, 0.02, "1 cm");
 DEFINE_double(gridDelQ, math_util::DegToRad(1.0), "1 deg");
 DEFINE_double(succ_trans_dist, 0.5, "50 cm");
-DEFINE_double(succ_ang_dist, math_util::DegToRad(45.0), "45 deg");
+DEFINE_double(succ_ang_dist, math_util::DegToRad(10.0), "45 deg");
 DEFINE_double(std_k1, 0.2, "Translation dependence on translation standard deviation");
 DEFINE_double(std_k2, 0.2, "Rotation dependence on translation standard deviation");
-DEFINE_double(std_k3, 0.2, "Translation dependence on rotation standard deviation");
-DEFINE_double(std_k4, 0.2, "Rotation dependence on rotation standard deviation");
+DEFINE_double(std_k3, 0.5, "Translation dependence on rotation standard deviation");
+DEFINE_double(std_k4, 1.0, "Rotation dependence on rotation standard deviation");
 
 SLAM::SLAM() :
     prev_odom_loc_(0, 0),
@@ -236,7 +236,7 @@ std::tuple<Eigen::Vector2f, float> SLAM::GetMostLikelyPose(const Eigen::Vector2f
   int gridSizeY = 2*std::floor(numOfSigmas*sigmaTrans/FLAGS_gridDelY) + 1;
   gridSizeY = 21;
   int gridSizeQ = 2*std::floor(numOfSigmas*sigmaRot/FLAGS_gridDelQ) + 1;
-  gridSizeQ = 21;
+  gridSizeQ = 41;
 
   float gridXMin = relSLAMPoseLoc.x() - ((gridSizeX - 1)/2)*FLAGS_gridDelX;
   float gridYMin = relSLAMPoseLoc.y() - ((gridSizeY - 1)/2)*FLAGS_gridDelY;
@@ -317,7 +317,8 @@ std::tuple<Eigen::Vector2f, float> SLAM::GetMostLikelyPose(const Eigen::Vector2f
     if (k==0) {
       std::cout << endl;
     }
-    std::cout << "Q" << k << ": " << prevSLAMPoseAngle + (float)(gridQMin + k*FLAGS_gridDelQ) << ", ";
+    std::cout << "Q" << k << ": " << math_util::RadToDeg(
+      prevSLAMPoseAngle + (float)(gridQMin + k*FLAGS_gridDelQ)) << ", ";
   }
   std::cout << endl;
   std::cout << "MaxLogLikelihood of " << maxLogLikelihood << " observed in Grid of size " << 
@@ -398,6 +399,8 @@ vector<Vector2f> SLAM::GetMap() {
     vector<Vector2f> point_cloud = point_clouds[pose_idx];
     for(size_t pc_idx = 0; pc_idx < point_cloud.size(); pc_idx++){
       Vector2f pc_pt = point_cloud[pc_idx];
+      if (pc_pt.norm() > FLAGS_map_range)
+        continue;
       Vector2f map_point = TransformAndEstimatePointCloud(robot_loc[0], robot_loc[1], robot_angle, pc_pt);
       map.push_back(map_point);
     }
