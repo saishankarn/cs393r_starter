@@ -284,7 +284,6 @@ std::tuple<Eigen::Vector2f, float> SLAM::GetMostLikelyPose(const Eigen::Vector2f
         }
         if(k == 0 && i == 0) {
           likelihoodMotionModelY.push_back(statistics::ProbabilityDensityGaussian(CandidateY, relSLAMPoseLoc.y(), sigmaTrans));
-          std::cout << "Y" << j << ": " << (prevSLAMPoseLoc + prevSLAMPoseR*CandidateP).y() << ", ";
         }
 
         std::vector<Eigen::Vector2f> Candidate_point_cloud_;
@@ -314,18 +313,7 @@ std::tuple<Eigen::Vector2f, float> SLAM::GetMostLikelyPose(const Eigen::Vector2f
           }
         }
       }
-      if (k==0 && i == 0) {
-        std::cout << endl;
-      }
-      if (k==0) {
-      std::cout << "X" << i << ": " << (prevSLAMPoseLoc + prevSLAMPoseR*CandidateP).x() << ", ";
-      } 
     }
-    if (k==0) {
-      std::cout << endl;
-    }
-    std::cout << "Q" << k << ": " << math_util::RadToDeg(
-      prevSLAMPoseAngle + CandidateQ) << ", ";
   }
   std::cout << endl;
   std::cout << "MaxLogLikelihood of " << maxLogLikelihood << " observed in Grid of size " << 
