@@ -22,6 +22,7 @@
 #include <vector>
 
 #include "eigen3/Eigen/Dense"
+#include "vector_map/vector_map.h"
 #include <math.h>
 
 #ifndef NAVIGATION_H
@@ -108,6 +109,25 @@ class Navigation {
   Eigen::Vector2f nav_goal_loc_;
   // Navigation goal angle.
   float nav_goal_angle_;
+
+  // Map of the environment.
+  vector_map::VectorMap map_;
+
+  // Navigation graph.
+  class NavigationGraph {
+    public:
+      NavigationGraph() {};
+      void Initialize(const vector_map::VectorMap& map);
+      std::vector
+
+    private:
+      struct t_grid_loc_ {
+        float x;
+        float y;
+      };      
+      std::vector<std::vector<t_grid_loc_>> grid_;
+  };
+  NavigationGraph nav_graph_;
 
   // kinematic variables 
   float max_acc = 4.0;

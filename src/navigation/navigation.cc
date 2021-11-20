@@ -41,6 +41,7 @@ using std::vector;
 using namespace math_util;
 using namespace ros_helpers;
 
+DEFINE_double(nav_graph_grid_res, 0.25, "Grid size of navigation graph");
 namespace {
 ros::Publisher drive_pub_;
 ros::Publisher viz_pub_;
@@ -68,6 +69,13 @@ Navigation::Navigation(const string& map_file, ros::NodeHandle* n) :
     nav_goal_loc_(5, 0),
     nav_goal_angle_(0),
     center_of_curve(0, 0){
+
+  // Loading the map file.    
+  map_.Load(map_file);
+
+  // Creating the navigation graph
+  nav_graph_.Initialize(map_);
+
   drive_pub_ = n->advertise<AckermannCurvatureDriveMsg>(
       "ackermann_curvature_drive", 1);
   viz_pub_ = n->advertise<VisualizationMsg>("visualization", 1);
@@ -89,9 +97,30 @@ std::tuple<Eigen::Vector2f, float> Navigation::getRelativePose(
   return std::make_tuple(pos, angle);
 }
 
-// Inputs:  Curvature of turning
-// Outputs: Distance remaining
+void Navigation::NavigationGraph::Initialize(const vector_map::VectorMap& map) {
+  // Finding the required size of the grid and populating it.
+  float x_min = 0.0;
+  float y_min = 0.0;
+  float x_max = 0.0;
+  float y_max = 0.0;
+  if (map_.lines.size() > 0 ) {
+    x_min = map_.lines.x();
+    y_min = map_.lines.y();
+  }
+
+  for (const geometry::line2f& l : map_.lines) {
+    if (l.p0.x() < x_min && l.p1.x() < x_min) continue;
+    if (l.p0.y() < y_min && l.p1.y() < y_min) continue;
+    if (l.p0.x() > x_max && l.p1.x() > x_max) continue;
+    if (l.p0.y() > y_max && l.p1.y() > y_max) continue;
+    lines_list->push_back(l);
+  }
+}
+
 std::tuple<float, float, float> Navigation::GetPathScoringParams(float curvature_of_turning, Eigen::Vector2f& collision_point) {
+  // Inputs:  Curvature of turning
+  // Outputs: Distance remaining
+
   float freePathLength = 5.0;
   float distanceToGoal = 5.0;
   float clearance = 5.0;
@@ -380,7 +409,7 @@ void Navigation::Run() {
   drive_msg_.curvature = 0.0;// over-writing the control action.
   //viz_pub_.publish(local_viz_msg_);
   //viz_pub_.publish(global_viz_msg_);
-  drive_pub_.publish(drive_msg_);
+  // drive_pub_.publish(drive_msg_);
   
 }
 
