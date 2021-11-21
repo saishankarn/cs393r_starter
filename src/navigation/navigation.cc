@@ -356,17 +356,19 @@ Eigen::Vector2f Navigation::DiscCoordToMap(  std::pair< int, int > disc_coord)
 
 std::pair< int, int > Navigation::DiscretizeCoord( Eigen::Vector2f coord )
 {
+  //td::cout << coord.y() / nav_grid_resolution_ << coord.x() / nav_grid_resolution_ << "\n";
   return std::make_pair( coord.y() / nav_grid_resolution_, coord.x() / nav_grid_resolution_); 
 }
 
 int Navigation::Hash(std::pair< int, int > disc_coord)
 {
-  return disc_coord.first * 100000 + disc_coord.second;
+  //std::cout << disc_coord.first << disc_coord.second << "\n";
+  return disc_coord.first * 100000 + (50000 + disc_coord.second);
 }
 
 std::pair< int, int > Navigation::Dehash(int hash)
 {
-  return std::make_pair( hash / 100000, hash % 100000);
+  return std::make_pair( hash / 100000, ((hash % 100000) - 50000));
 }
 
 Eigen::Vector2f Navigation::ConvertToEigen(std::pair<int, int> input)
@@ -383,7 +385,10 @@ void Navigation::Plan(const Eigen::Vector2f& start_loc,
   std::map< int, int >backtrack{ {Hash(grid_start), Hash(grid_start)} }; 
   std::cout << Hash(grid_start) << "\n";
   std::map< int, float >cost_table{ {Hash(grid_start), 0.0} };
-
+  //std::cout << Hash(Dehash(1849957)) << "\n";
+  //std::cout << Hash(Dehash(1849941)) << "\n";
+  //std::cout << Hash(Dehash(1850041)) << "\n";
+  //std::cout << Hash(Dehash(1900041)) << "\n";
   std::pair< int, int > grid_finish = DiscretizeCoord(finish_loc);
   int current = Hash(DiscretizeCoord(finish_loc));
   while( !plan_queue.Empty() )
@@ -397,9 +402,9 @@ void Navigation::Plan(const Eigen::Vector2f& start_loc,
     std::vector<std::pair< int, int >> unobstructed_neighbors = UnobstructedNeighbors( current_loc );
     for( const auto& unobstructed_neighbor: unobstructed_neighbors )
     { 
-      std::cout << Hash(current_loc) << "\n";
+      //std::cout << Hash(current_loc) << "\n";
       float const new_cost = cost_table.at(Hash(current_loc)) + (DiscCoordToMap(current_loc) - DiscCoordToMap(unobstructed_neighbor)).norm();
-      std::cout << Hash(unobstructed_neighbor) << "\n";
+      //std::cout << Hash(unobstructed_neighbor) << "\n";
       if( cost_table.find(Hash(unobstructed_neighbor)) == cost_table.end() ||
           new_cost < cost_table.at(Hash(unobstructed_neighbor)))
       {
