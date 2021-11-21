@@ -83,7 +83,6 @@ class Navigation {
   std::vector<std::pair< int, int >> UnobstructedNeighbors( std::pair<int,int> cell);
   Eigen::Vector2f DiscCoordToMap(  std::pair< int, int > disc_coord);
   std::pair< int, int > DiscretizeCoord( Eigen::Vector2f coord );
-  Eigen::Vector2f ConvertToEigen(std::pair<int, int> input);
  private:
 
   // Whether odometry has been initialized.
@@ -138,6 +137,7 @@ class Navigation {
 
   Eigen::Vector2f center_of_curve;
   float nav_grid_resolution_;
+  int hash_coefficient_;
   vector_map::VectorMap map_;
 };
 

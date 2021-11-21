@@ -72,7 +72,8 @@ Navigation::Navigation(const string& map_file, ros::NodeHandle* n) :
     nav_goal_loc_(5, 0),
     nav_goal_angle_(0),
     center_of_curve(0, 0),
-    nav_grid_resolution_(0.5){
+    nav_grid_resolution_(0.5),
+    hash_coefficient_(10000){
   drive_pub_ = n->advertise<AckermannCurvatureDriveMsg>(
       "ackermann_curvature_drive", 1);
   viz_pub_ = n->advertise<VisualizationMsg>("visualization", 1);
@@ -308,27 +309,28 @@ void Navigation::ObservePointCloud(const vector<Vector2f>& cloud,
 
 }
 
-std::vector<std::pair< int, int >> Navigation::UnobstructedNeighbors( std::pair<int,int> disc_coord)
+std::vector<std::pair<int, int>> Navigation::UnobstructedNeighbors(std::pair<int,int> disc_coord)
 {
-  std::vector<std::pair< int, int >> unobstructed_neighbors;
-  float tol = 0.8;
-  for ( int col_offset = -1; col_offset <= 1; ++col_offset)
+  std::vector<std::pair<int, int>> unobstructed_neighbors;
+  // float tol = 0.8;
+  for (int col_offset = -1; col_offset <= 1; ++col_offset)
   {
-    for ( int row_offset = -1; row_offset <= 1; ++row_offset)
+    for (int row_offset = -1; row_offset <= 1; ++row_offset)
     {
-      int row = row_offset + disc_coord.first ;
+      int row = row_offset + disc_coord.first;
       int col = col_offset + disc_coord.second;
       
-      if ( !((col_offset == 0) && (row_offset == 0) && (row > 0) && (col > 0) && (row < 1000) & (col < 1000) ))
+      if ( !((col_offset == 0) && (row_offset == 0) /*&& (row > 0) && (col > 0) && (row < 1000) && (col < 1000)*/ ))
       {
-        std::pair< int, int > center_max{ disc_coord.first+tol, disc_coord.second+tol};
-        std::pair< int, int > center_min{ disc_coord.first-tol, disc_coord.second-tol};
+        std::pair<int, int> neighbor{ row, col };
 
-        std::pair< int, int > neighbor{ row, col };
-        std::pair< int, int > neighbor_max{ row+tol, col+tol };
-        std::pair< int, int > neighbor_min{ row-tol, col-tol };
-        geometry::line2f linep1{ DiscCoordToMap(center_max), DiscCoordToMap(neighbor_max) };
-        geometry::line2f linep2{ DiscCoordToMap(center_min), DiscCoordToMap(neighbor_min) };
+        // std::pair<int, int> center_max{ disc_coord.first+tol, disc_coord.second+tol};
+        // std::pair<int, int> center_min{ disc_coord.first-tol, disc_coord.second-tol};
+
+        // std::pair<int, int> neighbor_max{ row+tol, col+tol };
+        // std::pair<int, int> neighbor_min{ row-tol, col-tol };
+        // geometry::line2f linep1{ DiscCoordToMap(center_max), DiscCoordToMap(neighbor_max) };
+        // geometry::line2f linep2{ DiscCoordToMap(center_min), DiscCoordToMap(neighbor_min) };
       
         
         // Is the neighbor unobstructed?
@@ -347,75 +349,92 @@ std::vector<std::pair< int, int >> Navigation::UnobstructedNeighbors( std::pair<
 }
 
 
-Eigen::Vector2f Navigation::DiscCoordToMap(  std::pair< int, int > disc_coord)
+Eigen::Vector2f Navigation::DiscCoordToMap(std::pair<int, int> disc_coord)
 {
-  Eigen::Vector2f map_coords{nav_grid_resolution_ * disc_coord.second , nav_grid_resolution_ * disc_coord.first};
+  Eigen::Vector2f map_coords{nav_grid_resolution_*disc_coord.first, nav_grid_resolution_*disc_coord.second};
   return map_coords;
 }
 
 
-std::pair< int, int > Navigation::DiscretizeCoord( Eigen::Vector2f coord )
-{
-  return std::make_pair( coord.y() / nav_grid_resolution_, coord.x() / nav_grid_resolution_); 
+std::pair<int, int> Navigation::DiscretizeCoord( Eigen::Vector2f coord ) {
+  return std::make_pair(static_cast<int>(coord.x()/nav_grid_resolution_), 
+                        static_cast<int>(coord.y()/nav_grid_resolution_)); 
 }
 
-int Navigation::Hash(std::pair< int, int > disc_coord)
+int Navigation::Hash(std::pair<int, int> disc_coord)
 {
-  return disc_coord.first * 10000 + disc_coord.second;
+  return static_cast<int>(disc_coord.first*hash_coefficient_ + disc_coord.second);
 }
 
-std::pair< int, int > Navigation::Dehash(int hash)
-{
-  return std::make_pair( hash / 10000, hash % 10000);
-}
-
-Eigen::Vector2f Navigation::ConvertToEigen(std::pair<int, int> input)
-{
-  return Eigen::Vector2f(input.first, input.second);
+std::pair<int, int> Navigation::Dehash(int hash) {
+  if (hash%hash_coefficient_ > hash_coefficient_/2)
+    return std::make_pair(hash/hash_coefficient_ + 1, hash%hash_coefficient_ - hash_coefficient_);
+  else if (hash%hash_coefficient_ < -hash_coefficient_/2)
+    return std::make_pair(hash/hash_coefficient_ - 1, hash%hash_coefficient_ + hash_coefficient_);
+  else 
+    return std::make_pair(hash/hash_coefficient_, hash%hash_coefficient_);
 }
 
 void Navigation::Plan(const Eigen::Vector2f& start_loc, 
-            const Eigen::Vector2f& finish_loc, 
-            std::vector<Eigen::Vector2f>& plan) {
+                      const Eigen::Vector2f& finish_loc, 
+                      std::vector<Eigen::Vector2f>& plan) {
+  
+  // Initialize priority queue
   SimpleQueue<int, float> plan_queue;
-  std::pair< int, int > grid_start  = DiscretizeCoord(start_loc);
-  plan_queue.Push(Hash(grid_start), 0 );
-  std::map< int, int >backtrack{ {Hash(grid_start), Hash(grid_start)} }; 
-  std::map< std::pair< int, int >, float >cost_table{ {grid_start, 0.0} };
+  std::pair<int, int> grid_start  = DiscretizeCoord(start_loc);
+  plan_queue.Push(Hash(grid_start), 0);
+  std::cout << "Discretized start location: (" << grid_start.first << ", " << grid_start.second << "); Hash: " << Hash(grid_start) << "\n";
+  
+  // Initialize dictionary
+  std::map<int, int>backtrack{ {Hash(grid_start), Hash(grid_start)} }; 
+  std::map< int, float >cost_table{ {Hash(grid_start), 0.0} };
 
-  std::pair< int, int > grid_finish = DiscretizeCoord(finish_loc);
-  int current = Hash(DiscretizeCoord(finish_loc));
-  while( !plan_queue.Empty() )
+  std::pair<int, int> grid_finish = DiscretizeCoord(finish_loc);
+  std::cout << "Discretized finish location: (" << grid_finish.first << ", " << grid_finish.second << "); Hash: " << Hash(grid_finish) << "\n";
+  
+  int k = 0;
+  while(!plan_queue.Empty())
   {
-    std::pair< int, int > current_loc = Dehash(plan_queue.Pop());
+    std::pair<int, int> current_loc = Dehash(plan_queue.Pop());
+    std::cout << "----- Discretized current location: (" << current_loc.first << ", " << current_loc.second << "); Hash: " << Hash(current_loc) << "\n";
     
-    if( current_loc.first == grid_finish.first && current_loc.second == grid_finish.second )
-    {
+    if(current_loc.first == grid_finish.first && current_loc.second == grid_finish.second) {
       break;
     }
-    std::vector<std::pair< int, int >> unobstructed_neighbors = UnobstructedNeighbors( current_loc );
-    for( const auto& unobstructed_neighbor: unobstructed_neighbors )
-    { 
-      float const new_cost = cost_table.at( current_loc ) + ( DiscCoordToMap(current_loc) - DiscCoordToMap( unobstructed_neighbor) ).norm();
-      
-      if( cost_table.find(unobstructed_neighbor ) == cost_table.end() ||
-          new_cost < cost_table.at(unobstructed_neighbor)  )
-      {
-        cost_table[unobstructed_neighbor] = new_cost;
-      
-        float prio = new_cost + ( DiscCoordToMap(DiscretizeCoord(finish_loc)) - DiscCoordToMap(unobstructed_neighbor) ).norm();
 
-        plan_queue.Push( Hash(unobstructed_neighbor), prio );
+    std::vector<std::pair<int, int>> unobstructed_neighbors = UnobstructedNeighbors(current_loc);
+    
+    for(const auto& unobstructed_neighbor: unobstructed_neighbors ) {
+      
+      std::cout << "Discretized neighbour location: (" << unobstructed_neighbor.first << ", " << unobstructed_neighbor.second << "); Hash: " << Hash(unobstructed_neighbor) << "\n";
+      float const new_cost = cost_table.at(Hash(current_loc)) + (DiscCoordToMap(current_loc) - DiscCoordToMap(unobstructed_neighbor)).norm();
+      std::cout << "Cost: " << new_cost << "\n";
+
+      if(cost_table.find(Hash(unobstructed_neighbor)) == cost_table.end() ||
+          new_cost < cost_table.at(Hash(unobstructed_neighbor)))
+      {
+        cost_table[Hash(unobstructed_neighbor)] = new_cost;
+      
+        float prio = -(new_cost + (DiscCoordToMap(grid_finish) - DiscCoordToMap(unobstructed_neighbor)).norm());
+
+        std::cout << "Priority: " << prio << "\n";
+        plan_queue.Push(Hash(unobstructed_neighbor), prio);
         backtrack[Hash(unobstructed_neighbor)] = Hash(current_loc);
       }
     }
+    k = k + 1;
+    if (k>10)
+      break;
   }
-  while( current != Hash(DiscretizeCoord(start_loc)) ) 
+
+  // Create map
+  int current = Hash(grid_finish);
+  while(current != Hash(grid_start) ) 
   {
-    plan.push_back(ConvertToEigen(Dehash(current)));
+    plan.push_back(DiscCoordToMap(Dehash(current)));
     current = backtrack.at(current);
   }
-  reverse( plan.begin(), plan.end() );
+  reverse(plan.begin(), plan.end());
   return; 
 }
 
@@ -499,6 +518,11 @@ void Navigation::Run() {
   // visualization::DrawRobotMargin(length, width, wheel_base, track_width, safety_margin, local_viz_msg_);
   // visualization::DrawCross(collision_point, 0.5, 0x000000, local_viz_msg_);
   
+  for(uint32_t i = 0; i < global_path_.size(); i++) {
+    if (i >= 1) {
+      visualization::DrawLine(global_path_[i-1], global_path_[i], 0x00FF00, global_viz_msg_);
+    }
+  }
 
   // Publish messages.
   drive_msg_.velocity = 1.0;// over-writing the control action.
