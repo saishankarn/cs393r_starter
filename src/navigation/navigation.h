@@ -23,6 +23,7 @@
 
 #include "eigen3/Eigen/Dense"
 #include "vector_map/vector_map.h"
+#include "simple_queue.h"
 #include <math.h>
 
 #ifndef NAVIGATION_H
@@ -117,16 +118,29 @@ class Navigation {
   class NavigationGraph {
     public:
       NavigationGraph() {};
-      void Initialize(const vector_map::VectorMap& map);
-      std::vector
+
+      static std::array<Eigen::Vector2f, 4> directions_;
+
+      // Construct a path from startLoc to goalLoc given the map
+      std::vector<Eigen::Vector2f> Initialize(const vector_map::VectorMap& map, Eigen::Vector2f startLoc,
+                      Eigen::Vector2f goalLoc);
+
+      std::vector<Eigen::Vector2f> GetPath(void);
 
     private:
-      struct t_grid_loc_ {
-        float x;
-        float y;
-      };      
-      std::vector<std::vector<t_grid_loc_>> grid_;
+
+      struct KeyHash {
+        std::size_t operator()(const Key& k) const {
+          return std::hash<std::string>()(k.first) ^
+                    (std::hash<std::string>()(k.second) << 1);
+        }
+      };
+      
+      Eigen::Vector2f A;
+
+      std::vector<Eigen::Vector2f> Neighbours(const Eigen::Vector2f& currentLoc);
   };
+  
   NavigationGraph nav_graph_;
 
   // kinematic variables 

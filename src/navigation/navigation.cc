@@ -74,7 +74,7 @@ Navigation::Navigation(const string& map_file, ros::NodeHandle* n) :
   map_.Load(map_file);
 
   // Creating the navigation graph
-  nav_graph_.Initialize(map_);
+  // nav_graph_.Initialize(map_);
 
   drive_pub_ = n->advertise<AckermannCurvatureDriveMsg>(
       "ackermann_curvature_drive", 1);
@@ -97,25 +97,44 @@ std::tuple<Eigen::Vector2f, float> Navigation::getRelativePose(
   return std::make_tuple(pos, angle);
 }
 
-void Navigation::NavigationGraph::Initialize(const vector_map::VectorMap& map) {
-  // Finding the required size of the grid and populating it.
-  float x_min = 0.0;
-  float y_min = 0.0;
-  float x_max = 0.0;
-  float y_max = 0.0;
-  if (map_.lines.size() > 0 ) {
-    x_min = map_.lines.x();
-    y_min = map_.lines.y();
+std::vector<Eigen::Vector2f> Navigation::NavigationGraph::Initialize(const vector_map::VectorMap& map, 
+                                                                     const Eigen::Vector2f& startLoc,
+                                                                     const Eigen::Vector2f& goalLoc) {
+  // Initializing the frontier
+  SimpleQueue<Eigen::Vector2f, float> frontier;
+  frontier.Push(startLoc, 0.0);
+  
+  // Keeping track of all visited nodes and their parents
+  std::unordered_map<Eigen::Vector2f, Eigen::Vector2f> nodesAndParents;
+  nodesAndParents[startLoc] = startLoc;
+
+  while(!frontier_.Empty()) {
+    Eigen::Vector2f currentLoc = frontier.Pop();
+    std::vector<Eigen::Vector2f> neighbours = Neighbours(currentLoc)
+    for(Eigen::Vector2f neighbour : neighbours){
+      
+    }
+    ;
+  }
+  
+}
+
+std::vector<Eigen::Vector2f> Navigation::NavigationGraph::Neighbours(const Eigen::Vector2f& currentLoc) {
+  std::vector<Eigen::Vector2f> neighbours;
+  // Check for collisions and map limits
+  for (const Eigen::Vector2f& direction : directions_){
+    Eigen::Vector2f nextLoc = currentLoc + direction;
+    neighbours.push_back(nextLoc);
   }
 
-  for (const geometry::line2f& l : map_.lines) {
-    if (l.p0.x() < x_min && l.p1.x() < x_min) continue;
-    if (l.p0.y() < y_min && l.p1.y() < y_min) continue;
-    if (l.p0.x() > x_max && l.p1.x() > x_max) continue;
-    if (l.p0.y() > y_max && l.p1.y() > y_max) continue;
-    lines_list->push_back(l);
-  }
+  return neighbours;
 }
+
+ std::array<Eigen::Vector2f, 4> Navigation::NavigationGraph::directions_ = {
+   Eigen::Vector2f( FLAGS_nav_graph_grid_res, 0.0), Eigen::Vector2f(0.0,  FLAGS_nav_graph_grid_res), 
+   Eigen::Vector2f(-FLAGS_nav_graph_grid_res, 0.0), Eigen::Vector2f(0.0, -FLAGS_nav_graph_grid_res)
+ };
+  
 
 std::tuple<float, float, float> Navigation::GetPathScoringParams(float curvature_of_turning, Eigen::Vector2f& collision_point) {
   // Inputs:  Curvature of turning
