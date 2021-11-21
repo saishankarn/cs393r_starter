@@ -23,6 +23,7 @@
 
 #include "eigen3/Eigen/Dense"
 #include <math.h>
+#include "vector_map/vector_map.h"
 
 #ifndef NAVIGATION_H
 #define NAVIGATION_H
@@ -60,7 +61,7 @@ class Navigation {
   // Updates based on an observed laser scan
   void ObservePointCloud(const std::vector<Eigen::Vector2f>& cloud,
                          double time);
-
+  void Plan( Eigen::Vector2f start_loc,  Eigen::Vector2f finish_loc, std::vector<std::pair< int, int >>* plan_ptr);
   // Main function called continously from main
   void Run();
   // Used to set the next target pose.
@@ -74,9 +75,12 @@ class Navigation {
   std::tuple<float, float, float> GetPathScoringParams(float curvature_of_turning, Eigen::Vector2f& closest_point);
 
   Eigen::Vector2f TransformAndEstimatePointCloud(float x, float y, float theta, Eigen::Vector2f pt);
-
+  int Hash(std::pair< int, int > disc_coord);
+  std::pair< int, int > Dehash(int hash);
   void UpdateVelocityProfile(float last_vel);
-
+ std::vector<std::pair< int, int >> UnobstructedNeighbors( std::pair<int,int> cell);
+ Eigen::Vector2f DiscCoordToMap(  std::pair< int, int > disc_coord);
+ std::pair< int, int > DiscretizeCoord( Eigen::Vector2f coord );
  private:
 
   // Whether odometry has been initialized.
@@ -101,7 +105,7 @@ class Navigation {
   float odom_start_angle_;
   // Latest observed point cloud.
   std::vector<Eigen::Vector2f> point_cloud_;
-
+  
   // Whether navigation is complete.
   bool nav_complete_;
   // Navigation goal location.
@@ -128,7 +132,8 @@ class Navigation {
   float safety_margin = 0.05; 
 
   Eigen::Vector2f center_of_curve;
-
+  float nav_grid_resolution_;
+  vector_map::VectorMap map_;
 };
 
 }  // namespace navigation
