@@ -361,12 +361,12 @@ std::pair< int, int > Navigation::DiscretizeCoord( Eigen::Vector2f coord )
 
 int Navigation::Hash(std::pair< int, int > disc_coord)
 {
-  return disc_coord.first * 10000 + disc_coord.second;
+  return disc_coord.first * 100000 + disc_coord.second;
 }
 
 std::pair< int, int > Navigation::Dehash(int hash)
 {
-  return std::make_pair( hash / 10000, hash % 10000);
+  return std::make_pair( hash / 100000, hash % 100000);
 }
 
 Eigen::Vector2f Navigation::ConvertToEigen(std::pair<int, int> input)
@@ -381,7 +381,8 @@ void Navigation::Plan(const Eigen::Vector2f& start_loc,
   std::pair< int, int > grid_start  = DiscretizeCoord(start_loc);
   plan_queue.Push(Hash(grid_start), 0 );
   std::map< int, int >backtrack{ {Hash(grid_start), Hash(grid_start)} }; 
-  std::map< std::pair< int, int >, float >cost_table{ {grid_start, 0.0} };
+  std::cout << Hash(grid_start) << "\n";
+  std::map< int, float >cost_table{ {Hash(grid_start), 0.0} };
 
   std::pair< int, int > grid_finish = DiscretizeCoord(finish_loc);
   int current = Hash(DiscretizeCoord(finish_loc));
@@ -396,12 +397,13 @@ void Navigation::Plan(const Eigen::Vector2f& start_loc,
     std::vector<std::pair< int, int >> unobstructed_neighbors = UnobstructedNeighbors( current_loc );
     for( const auto& unobstructed_neighbor: unobstructed_neighbors )
     { 
-      float const new_cost = cost_table.at( current_loc ) + ( DiscCoordToMap(current_loc) - DiscCoordToMap( unobstructed_neighbor) ).norm();
-      
-      if( cost_table.find(unobstructed_neighbor ) == cost_table.end() ||
-          new_cost < cost_table.at(unobstructed_neighbor)  )
+      std::cout << Hash(current_loc) << "\n";
+      float const new_cost = cost_table.at(Hash(current_loc)) + (DiscCoordToMap(current_loc) - DiscCoordToMap(unobstructed_neighbor)).norm();
+      std::cout << Hash(unobstructed_neighbor) << "\n";
+      if( cost_table.find(Hash(unobstructed_neighbor)) == cost_table.end() ||
+          new_cost < cost_table.at(Hash(unobstructed_neighbor)))
       {
-        cost_table[unobstructed_neighbor] = new_cost;
+        cost_table[Hash(unobstructed_neighbor)] = new_cost;
       
         float prio = new_cost + ( DiscCoordToMap(DiscretizeCoord(finish_loc)) - DiscCoordToMap(unobstructed_neighbor) ).norm();
 
