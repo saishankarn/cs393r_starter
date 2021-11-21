@@ -269,6 +269,12 @@ void Navigation::UpdateVelocityProfile(float last_vel){
 
 
 void Navigation::SetNavGoal(const Vector2f& loc, float angle) {
+  // Can initialize global planner once start pose of the robot is known.
+  std::vector<Eigen::Vector2f> plan;
+  if(localization_initialized_ == true) {
+    Plan(robot_loc_, loc, plan);
+  }
+  global_path_ = plan;
 }
 
 void Navigation::UpdateLocation(const Eigen::Vector2f& loc, float angle) {
@@ -324,15 +330,15 @@ std::vector<std::pair< int, int >> Navigation::UnobstructedNeighbors( std::pair<
         geometry::line2f linep1{ DiscCoordToMap(center_max), DiscCoordToMap(neighbor_max) };
         geometry::line2f linep2{ DiscCoordToMap(center_min), DiscCoordToMap(neighbor_min) };
       
-
+        
         // Is the neighbor unobstructed?
-        for (size_t i = 0; i < map_.lines.size(); ++i)
-        {
-          if( map_.lines[i].Intersects(linep1) == true || map_.lines[i].Intersects(linep2) == true )
-          {
-            break;
-          }
-        }
+        // for (size_t i = 0; i < map_.lines.size(); ++i)
+        // {
+        //   if( map_.lines[i].Intersects(linep1) == true || map_.lines[i].Intersects(linep2) == true )
+        //   {
+        //     break;
+        //   }
+        // }
         unobstructed_neighbors.push_back(neighbor);
       }
     }
@@ -363,10 +369,14 @@ std::pair< int, int > Navigation::Dehash(int hash)
   return std::make_pair( hash / 10000, hash % 10000);
 }
 
-
-void Navigation::Plan( Eigen::Vector2f start_loc,  Eigen::Vector2f finish_loc, std::vector<std::pair< int, int >>* plan_ptr)
+Eigen::Vector2f Navigation::ConvertToEigen(std::pair<int, int> input)
 {
-  std::vector<std::pair< int, int >> &plan = *plan_ptr;
+  return Eigen::Vector2f(input.first, input.second);
+}
+
+void Navigation::Plan(const Eigen::Vector2f& start_loc, 
+            const Eigen::Vector2f& finish_loc, 
+            std::vector<Eigen::Vector2f>& plan) {
   SimpleQueue<int, float> plan_queue;
   std::pair< int, int > grid_start  = DiscretizeCoord(start_loc);
   plan_queue.Push(Hash(grid_start), 0 );
@@ -402,7 +412,7 @@ void Navigation::Plan( Eigen::Vector2f start_loc,  Eigen::Vector2f finish_loc, s
   }
   while( current != Hash(DiscretizeCoord(start_loc)) ) 
   {
-    plan.push_back(Dehash(current));
+    plan.push_back(ConvertToEigen(Dehash(current)));
     current = backtrack.at(current);
   }
   reverse( plan.begin(), plan.end() );
@@ -494,8 +504,8 @@ void Navigation::Run() {
   drive_msg_.velocity = 1.0;// over-writing the control action.
   drive_msg_.curvature = 0.0;// over-writing the control action.
   //viz_pub_.publish(local_viz_msg_);
-  //viz_pub_.publish(global_viz_msg_);
-  drive_pub_.publish(drive_msg_);
+  viz_pub_.publish(global_viz_msg_);
+  // drive_pub_.publish(drive_msg_);
   
 }
 

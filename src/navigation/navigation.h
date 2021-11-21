@@ -61,7 +61,9 @@ class Navigation {
   // Updates based on an observed laser scan
   void ObservePointCloud(const std::vector<Eigen::Vector2f>& cloud,
                          double time);
-  void Plan( Eigen::Vector2f start_loc,  Eigen::Vector2f finish_loc, std::vector<std::pair< int, int >>* plan_ptr);
+  void Plan(const Eigen::Vector2f& start_loc, 
+            const Eigen::Vector2f& finish_loc, 
+            std::vector<Eigen::Vector2f>& plan);
   // Main function called continously from main
   void Run();
   // Used to set the next target pose.
@@ -78,9 +80,10 @@ class Navigation {
   int Hash(std::pair< int, int > disc_coord);
   std::pair< int, int > Dehash(int hash);
   void UpdateVelocityProfile(float last_vel);
- std::vector<std::pair< int, int >> UnobstructedNeighbors( std::pair<int,int> cell);
- Eigen::Vector2f DiscCoordToMap(  std::pair< int, int > disc_coord);
- std::pair< int, int > DiscretizeCoord( Eigen::Vector2f coord );
+  std::vector<std::pair< int, int >> UnobstructedNeighbors( std::pair<int,int> cell);
+  Eigen::Vector2f DiscCoordToMap(  std::pair< int, int > disc_coord);
+  std::pair< int, int > DiscretizeCoord( Eigen::Vector2f coord );
+  Eigen::Vector2f ConvertToEigen(std::pair<int, int> input);
  private:
 
   // Whether odometry has been initialized.
@@ -112,6 +115,8 @@ class Navigation {
   Eigen::Vector2f nav_goal_loc_;
   // Navigation goal angle.
   float nav_goal_angle_;
+
+  std::vector<Eigen::Vector2f> global_path_;
 
   // kinematic variables 
   float max_acc = 4.0;
