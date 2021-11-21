@@ -305,7 +305,7 @@ void Navigation::ObservePointCloud(const vector<Vector2f>& cloud,
 std::vector<std::pair< int, int >> Navigation::UnobstructedNeighbors( std::pair<int,int> disc_coord)
 {
   std::vector<std::pair< int, int >> unobstructed_neighbors;
-  float tolerance_ = 0.8;
+  float tol = 0.8;
   for ( int col_offset = -1; col_offset <= 1; ++col_offset)
   {
     for ( int row_offset = -1; row_offset <= 1; ++row_offset)
@@ -313,27 +313,27 @@ std::vector<std::pair< int, int >> Navigation::UnobstructedNeighbors( std::pair<
       int row = row_offset + disc_coord.first ;
       int col = col_offset + disc_coord.second;
       
-      if ( !((col_offset == 0) && (row_offset == 0)) ) // && ValidCoords(row, col)
+      if ( !((col_offset == 0) && (row_offset == 0) && (row > 0) && (col > 0) && (row < 1000) & (col < 1000) ))
       {
-        std::pair< int, int > center_inflate_top{ disc_coord.first+(tolerance_), disc_coord.second+(tolerance_)};
-        std::pair< int, int > center_inflate_bottom{ disc_coord.first-(tolerance_), disc_coord.second-(tolerance_)};
+        std::pair< int, int > center_max{ disc_coord.first+tol, disc_coord.second+tol};
+        std::pair< int, int > center_min{ disc_coord.first-tol, disc_coord.second-tol};
 
         std::pair< int, int > neighbor{ row, col };
-        std::pair< int, int > neighbor_top{ row+(tolerance_), col+(tolerance_) };
-        std::pair< int, int > neighbor_bottom{ row-(tolerance_), col-(tolerance_) };
-        geometry::line2f line_to_neighbor_up{ DiscCoordToMap(center_inflate_top), DiscCoordToMap(neighbor_top) };
-        geometry::line2f line_to_neighbor_bottom{ DiscCoordToMap(center_inflate_bottom), DiscCoordToMap(neighbor_bottom) };
+        std::pair< int, int > neighbor_max{ row+tol, col+tol };
+        std::pair< int, int > neighbor_min{ row-tol, col-tol };
+        geometry::line2f linep1{ DiscCoordToMap(center_max), DiscCoordToMap(neighbor_max) };
+        geometry::line2f linep2{ DiscCoordToMap(center_min), DiscCoordToMap(neighbor_min) };
       
 
         // Is the neighbor unobstructed?
         for (size_t i = 0; i < map_.lines.size(); ++i)
         {
-          if( map_.lines[i].Intersects( line_to_neighbor_up) == true || map_.lines[i].Intersects( line_to_neighbor_bottom) == true )
+          if( map_.lines[i].Intersects(linep1) == true || map_.lines[i].Intersects(linep2) == true )
           {
             break;
           }
         }
-        unobstructed_neighbors.push_back( neighbor );
+        unobstructed_neighbors.push_back(neighbor);
       }
     }
   }
