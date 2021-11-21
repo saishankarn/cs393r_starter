@@ -311,7 +311,7 @@ void Navigation::ObservePointCloud(const vector<Vector2f>& cloud,
 
 std::vector<std::pair<int, int>> Navigation::UnobstructedNeighbors(std::pair<int,int> disc_coord) {
   std::vector<std::pair<int, int>> unobstructed_neighbors;
-  float tol = 0.0;
+  float tol = 0.5;
   bool valid_neighbor;
   for (int col_offset = -1; col_offset <= 1; ++col_offset) {
     for (int row_offset = -1; row_offset <= 1; ++row_offset) {
@@ -322,23 +322,44 @@ std::vector<std::pair<int, int>> Navigation::UnobstructedNeighbors(std::pair<int
       if ( !((col_offset == 0) && (row_offset == 0) /*&& (row > 0) && (col > 0) && (row < 1000) && (col < 1000)*/ )) {
         std::pair<int, int> neighbor{ row, col };
 
-        std::pair<int, int> center_max{ disc_coord.first+tol, disc_coord.second+tol};
-        std::pair<int, int> center_min{ disc_coord.first-tol, disc_coord.second-tol};
+        std::pair<int, int> center1{ disc_coord.first+tol, disc_coord.second+tol};
+        std::pair<int, int> center2{ disc_coord.first-tol, disc_coord.second-tol};
+        std::pair<int, int> center3{ disc_coord.first+tol, disc_coord.second-tol};
+        std::pair<int, int> center4{ disc_coord.first-tol, disc_coord.second+tol};
 
-        std::pair<int, int> neighbor_max{ row+tol, col+tol };
-        std::pair<int, int> neighbor_min{ row-tol, col-tol };
-        geometry::line2f linep1{ DiscCoordToMap(center_max), DiscCoordToMap(neighbor_max) };
-        geometry::line2f linep2{ DiscCoordToMap(center_min), DiscCoordToMap(neighbor_min) };
-      
+        std::pair<int, int> neighbor1{ row+tol, col+tol };
+        std::pair<int, int> neighbor2{ row-tol, col-tol };
+        std::pair<int, int> neighbor3{ row+tol, col-tol };
+        std::pair<int, int> neighbor4{ row-tol, col+tol };
+        geometry::line2f linep1{ DiscCoordToMap(center1), DiscCoordToMap(neighbor1) };
+        geometry::line2f linep2{ DiscCoordToMap(center1), DiscCoordToMap(neighbor2) };
+        geometry::line2f linep3{ DiscCoordToMap(center1), DiscCoordToMap(neighbor3) };
+        geometry::line2f linep4{ DiscCoordToMap(center1), DiscCoordToMap(neighbor4) };
+        geometry::line2f linep5{ DiscCoordToMap(center2), DiscCoordToMap(neighbor1) };
+        geometry::line2f linep6{ DiscCoordToMap(center2), DiscCoordToMap(neighbor2) };
+        geometry::line2f linep7{ DiscCoordToMap(center2), DiscCoordToMap(neighbor3) };
+        geometry::line2f linep8{ DiscCoordToMap(center2), DiscCoordToMap(neighbor4) };
+        geometry::line2f linep9{ DiscCoordToMap(center3), DiscCoordToMap(neighbor1) };
+        geometry::line2f linep10{ DiscCoordToMap(center3), DiscCoordToMap(neighbor2) };
+        geometry::line2f linep11{ DiscCoordToMap(center3), DiscCoordToMap(neighbor3) };
+        geometry::line2f linep12{ DiscCoordToMap(center3), DiscCoordToMap(neighbor4) };
+        geometry::line2f linep13{ DiscCoordToMap(center4), DiscCoordToMap(neighbor1) };
+        geometry::line2f linep14{ DiscCoordToMap(center4), DiscCoordToMap(neighbor2) };
+        geometry::line2f linep15{ DiscCoordToMap(center4), DiscCoordToMap(neighbor3) };
+        geometry::line2f linep16{ DiscCoordToMap(center4), DiscCoordToMap(neighbor4) };
         
         // Is the neighbor unobstructed?
         for (size_t i = 0; i < map_.lines.size(); ++i) {
-          if( map_.lines[i].Intersects(linep1) == true || map_.lines[i].Intersects(linep2) == true ) {
+          if(map_.lines[i].Intersects(linep1) || map_.lines[i].Intersects(linep2)  || map_.lines[i].Intersects(linep3) || map_.lines[i].Intersects(linep4)
+            || map_.lines[i].Intersects(linep5)  || map_.lines[i].Intersects(linep6) || map_.lines[i].Intersects(linep7)
+            || map_.lines[i].Intersects(linep8)  || map_.lines[i].Intersects(linep9) || map_.lines[i].Intersects(linep10)
+            || map_.lines[i].Intersects(linep11)  || map_.lines[i].Intersects(linep12) || map_.lines[i].Intersects(linep13)
+            || map_.lines[i].Intersects(linep14)  || map_.lines[i].Intersects(linep15) || map_.lines[i].Intersects(linep16)) {
             valid_neighbor = false;
             break;
           }
         }
-        if (valid_neighbor == true)
+        if (valid_neighbor)
           unobstructed_neighbors.push_back(neighbor);
       }
     }
