@@ -392,7 +392,6 @@ void Navigation::Plan(const Eigen::Vector2f& start_loc,
   std::pair<int, int> grid_finish = DiscretizeCoord(finish_loc);
   std::cout << "Discretized finish location: (" << grid_finish.first << ", " << grid_finish.second << "); Hash: " << Hash(grid_finish) << "\n";
   
-  int k = 0;
   while(!plan_queue.Empty())
   {
     std::pair<int, int> current_loc = Dehash(plan_queue.Pop());
@@ -422,9 +421,6 @@ void Navigation::Plan(const Eigen::Vector2f& start_loc,
         backtrack[Hash(unobstructed_neighbor)] = Hash(current_loc);
       }
     }
-    k = k + 1;
-    if (k>10)
-      break;
   }
 
   // Create map
@@ -434,6 +430,7 @@ void Navigation::Plan(const Eigen::Vector2f& start_loc,
     plan.push_back(DiscCoordToMap(Dehash(current)));
     current = backtrack.at(current);
   }
+  plan.push_back(DiscCoordToMap(Dehash(current)));
   reverse(plan.begin(), plan.end());
   return; 
 }
