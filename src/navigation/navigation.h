@@ -74,8 +74,14 @@ class Navigation {
   std::tuple<Eigen::Vector2f, float> getRelativePose(const Eigen::Vector2f initPos, float initAngle, 
     const Eigen::Vector2f endPos, float endAngle) const; 
 
-  std::tuple<float, float, float> GetPathScoringParams(float curvature_of_turning, Eigen::Vector2f& closest_point);
+  std::tuple<float, float, float> GetPathScoringParams(float curvature_of_turning, 
+                                                       const Eigen::Vector2f& localGoal,
+                                                       Eigen::Vector2f& closest_point);
 
+  bool PathCircleIntersection(const std::vector<Eigen::Vector2f>& path,
+                                        const Eigen::Vector2f& circle_center,
+                                        float radius,
+                                        Eigen::Vector2f* point);
   Eigen::Vector2f TransformAndEstimatePointCloud(float x, float y, float theta, Eigen::Vector2f pt);
   int Hash(std::pair< int, int > disc_coord);
   std::pair< int, int > Dehash(int hash);
@@ -110,6 +116,8 @@ class Navigation {
   
   // Whether navigation is complete.
   bool nav_complete_;
+  // Whether navigation goal is set.
+  bool nav_goal_set_;
   // Navigation goal location.
   Eigen::Vector2f nav_goal_loc_;
   // Navigation goal angle.
@@ -120,7 +128,7 @@ class Navigation {
   // kinematic variables 
   float max_acc = 4.0;
   float max_dec = 4.0;
-  float max_vel = 1.0;
+  float max_vel = 0.5;
   float del_t = 0.05;
   const static int act_lat = 3;
   const static int sens_lat = 1;
@@ -137,6 +145,7 @@ class Navigation {
 
   Eigen::Vector2f center_of_curve;
   float nav_grid_resolution_;
+  float local_planner_circle_radius_;
   int hash_coefficient_;
   vector_map::VectorMap map_;
 };
