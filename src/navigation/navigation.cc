@@ -200,7 +200,9 @@ std::tuple<float, float, float> Navigation::GetPathScoringParams(float curvature
     }
 
     // Finding the distance to goal.
-    distanceToGoal = fabs((localGoal - Vector2f(0, radius_of_turning_nominal)).norm() - radius_of_turning_nominal);
+    distanceToGoal = fabs((Eigen::Vector2f(localGoal.x(),localGoal.y()*direction_of_turning)
+                           - Vector2f(0, radius_of_turning_nominal)).norm() 
+                          - radius_of_turning_nominal);
 
   }
   
@@ -466,26 +468,28 @@ void Navigation::Plan(const Eigen::Vector2f& start_loc,
 
 
 Vector2f Navigation::TransformAndEstimatePointCloud(float x, float y, float theta, Vector2f pt){
-  Eigen::Matrix3f T;
-  T << cos(theta), -sin(theta), x, 
-       sin(theta), cos(theta), y, 
-       0, 0, 1;
-  T = T.inverse();
-  Eigen::Vector3f pt3(pt[0], pt[1], 1);
-  pt3 = T*pt3;
-  return Vector2f(pt3[0], pt3[1]);
+  // Eigen::Matrix3f T;
+  // T << cos(theta), -sin(theta), x, 
+  //      sin(theta), cos(theta), y, 
+  //      0, 0, 1;
+  // T = T.inverse();
+  // Eigen::Vector3f pt3(pt[0], pt[1], 1);
+  // pt3 = T*pt3;
+  // return Vector2f(pt3[0], pt3[1]);
+
+  Eigen::Affine2f T;
+  T = Eigen::Translation2f(x, y)*Eigen::Rotation2Df(theta);
+  return T.inverse()*pt;
 }
 
-bool Navigation::PathCircleIntersection(const std::vector<Eigen::Vector2f>& path,
+bool Navigation::FindPathCircleIntersection(const std::vector<Eigen::Vector2f>& path,
                                         const Eigen::Vector2f& circle_center,
                                         float radius,
-                                        Eigen::Vector2f* point) {
-  float squared_distance;
+                                        Eigen::Vector2f& point) {
   for(uint32_t i = 0; i < path.size(); i++) {
     if(i >= 1) {
-      bool intersects_ray = geometry::FurthestFreePointCircle(path[i-1], path[i], circle_center, radius, 
-                                                              &squared_distance, point);
-      bool intersects = (geometry::IsBetween(path[i], path[i-1], *point, kEpsilon) && intersects_ray);
+      bool intersects = FindLineSegmentCircleIntersections(path[i-1], path[i], circle_center, radius, 
+                                                           point);
       if (intersects)
         return true;
     }
@@ -493,51 +497,66 @@ bool Navigation::PathCircleIntersection(const std::vector<Eigen::Vector2f>& path
   return false;                                    
 }
 
-// private int FindLineCircleIntersections(
-//     float cx, float cy, float radius,
-//     PointF point1, PointF point2,
-//     out PointF intersection1, out PointF intersection2)
-// {
-//     float dx, dy, A, B, C, det, t;
+bool Navigation::FindLineSegmentCircleIntersections(const Eigen::Vector2f& point1,
+                                             const Eigen::Vector2f& point2,
+                                             const Eigen::Vector2f& center,
+                                             float radius,
+                                             Eigen::Vector2f& intersection) {
+  float dx, dy, A, B, C, det, t;
 
-//     dx = point2.X - point1.X;
-//     dy = point2.Y - point1.Y;
+  dx = point2.x() - point1.x();
+  dy = point2.y() - point1.y();
 
-//     A = dx * dx + dy * dy;
-//     B = 2 * (dx * (point1.X - cx) + dy * (point1.Y - cy));
-//     C = (point1.X - cx) * (point1.X - cx) +
-//         (point1.Y - cy) * (point1.Y - cy) -
-//         radius * radius;
+  A = dx*dx + dy*dy;
+  B = 2.0*(dx*(point1.x() - center.x()) + dy*(point1.y() - center.y()));
+  C = (point1.x() - center.x())*(point1.x() - center.x()) +
+      (point1.y() - center.y())*(point1.y() - center.y()) -
+      radius*radius;
 
-//     det = B * B - 4 * A * C;
-//     if ((A <= 0.0000001) || (det < 0))
-//     {
-//         // No real solutions.
-//         intersection1 = new PointF(float.NaN, float.NaN);
-//         intersection2 = new PointF(float.NaN, float.NaN);
-//         return 0;
-//     }
-//     else if (det == 0)
-//     {
-//         // One solution.
-//         t = -B / (2 * A);
-//         intersection1 =
-//             new PointF(point1.X + t * dx, point1.Y + t * dy);
-//         intersection2 = new PointF(float.NaN, float.NaN);
-//         return 1;
-//     }
-//     else
-//     {
-//         // Two solutions.
-//         t = (float)((-B + Math.Sqrt(det)) / (2 * A));
-//         intersection1 =
-//             new PointF(point1.X + t * dx, point1.Y + t * dy);
-//         t = (float)((-B - Math.Sqrt(det)) / (2 * A));
-//         intersection2 =
-//             new PointF(point1.X + t * dx, point1.Y + t * dy);
-//         return 2;
-//     }
-// }
+  det = B*B - 4.0*A*C;
+  if ((A <= kEpsilon) || (det < 0)) {
+    // No real solutions.
+    return false;
+  }
+  else if (fabs(det) < kEpsilon) {
+    // One solution.
+    t = -B/(2.0*A);
+    intersection << point1.x() + t*dx, point1.y() + t*dy;
+    if (geometry::IsBetween(point1, point2, intersection, kEpsilon))
+      return true;
+  }
+  else {
+    // Two solutions.
+    t = ((-B + std::sqrt(det))/(2.0*A));
+    Eigen::Vector2f intersection1 = {point1.x() + t*dx, point1.y() + t*dy};
+    t = ((-B - std::sqrt(det))/(2.0*A));
+    Eigen::Vector2f intersection2 = {point1.x() + t*dx, point1.y() + t*dy};
+
+    if (geometry::IsBetween(point1, point2, intersection1, kEpsilon)) {
+      if (geometry::IsBetween(point1, point2, intersection2, kEpsilon)) {
+        if ((intersection1 - center).norm() <= (intersection2 - center).norm()) {
+          intersection = intersection1;
+          return true;
+        }
+        else {
+          intersection = intersection2;
+          return true;
+        }
+      }
+      else {
+        intersection = intersection1;
+        return true;
+      }
+    }
+    else if (geometry::IsBetween(point1, point2, intersection2, kEpsilon)) {
+      intersection = intersection2;
+      return true;
+    }
+    else
+      return false;
+  }
+  return false;
+}
 
 void Navigation::Run() {
   // This function gets called 20 times a second to form the control loop.
@@ -562,18 +581,22 @@ void Navigation::Run() {
 
     // Integrating global planner with local planner.
     Eigen::Vector2f local_goal = {5.0, 0.0};
-    nav_complete_ = !PathCircleIntersection(global_path_,
+    nav_complete_ = !FindPathCircleIntersection(global_path_,
                                             robot_loc_,
                                             local_planner_circle_radius_,
-                                            &local_goal);
-    visualization::DrawCross(local_goal, 0.1, 0x000000, global_viz_msg_);
+                                            local_goal);
+    // visualization::DrawCross(local_goal, 0.1, 0x000000, global_viz_msg_);
     visualization::DrawArc(robot_loc_, local_planner_circle_radius_, 0.0, M_2PI, 0x000000, global_viz_msg_);
 
     local_goal = TransformAndEstimatePointCloud(robot_loc_.x(),
                                                 robot_loc_.y(),
                                                 robot_angle_,
                                                 local_goal);
-    visualization::DrawCross(local_goal, 0.2, 0xFF0000, local_viz_msg_);
+    // visualization::DrawCross(Eigen::Vector2f(1.5, 0.0), 0.2, 0x0000FF, local_viz_msg_);
+    visualization::DrawCross(local_goal, 0.1, 0xFF0000, local_viz_msg_);
+    // std::cout << "Local Goal: "<< local_goal.x() << ", "
+    //           << local_goal.y() << ")" << "\n";
+
     float distance_remaining = 0.0;
     if (nav_complete_) {
       distance_remaining = 0.0;
@@ -587,16 +610,24 @@ void Navigation::Run() {
       distance_remaining = 0.0; // setting a minimum value of zero
       float best_score = -kInf;
       
-      for (float curvature_candidate = 1.05; curvature_candidate >= -1.05; curvature_candidate = curvature_candidate - 0.1) {
-        float freePathLengthCandidate;
-        float distanceToGoalCandidate;
-        float clearanceCandidate;
+      float curvature_candidate;
+      float freePathLengthCandidate;
+      float distanceToGoalCandidate;
+      float clearanceCandidate;
+
+      for (curvature_candidate = 1.05; curvature_candidate >= -1.06; 
+           curvature_candidate = curvature_candidate - 0.1) {
         std::tie(freePathLengthCandidate, distanceToGoalCandidate, clearanceCandidate) = 
           GetPathScoringParams(curvature_candidate, 
                                local_goal,
                                collision_point_candidate);
-        float score = freePathLengthCandidate + dtgWeight*distanceToGoalCandidate + clWeight*clearanceCandidate;
+        float score = 0.0*freePathLengthCandidate + 
+                      dtgWeight*distanceToGoalCandidate + 
+                      0.0*clWeight*clearanceCandidate;
         
+        // std::cout << "C: "<< curvature_candidate << ", FPL: " << freePathLengthCandidate 
+        //           << ", DTG: " << dtgWeight*distanceToGoalCandidate 
+        //           << ", Cl: " << clWeight*clearanceCandidate << ", S: " <<score << "\n";
         // Choosing the arc/line with the best score
         if (score > best_score) {
           best_score = score;
@@ -605,6 +636,7 @@ void Navigation::Run() {
           drive_msg_.curvature = curvature_candidate; // choosing curvature with best score
         }
       }
+      visualization::DrawPath(drive_msg_.curvature, freePathLengthCandidate, 0xFFA500, local_viz_msg_);
     }
 
     // // Adjust the distance traveled by taking into account the latency compensation.
@@ -627,13 +659,9 @@ void Navigation::Run() {
   local_viz_msg_.header.stamp = ros::Time::now();
   global_viz_msg_.header.stamp = ros::Time::now();
   drive_msg_.header.stamp = ros::Time::now();
-  // visualization::DrawRobotMargin(length, width, wheel_base, track_width, safety_margin, local_viz_msg_);
-  // Visualizing candidate arcs and correspoing distances
-    // visualization::DrawPath(curvature_candidate, freePathLengthCandidate, 0xFFA500, local_viz_msg_);
+  visualization::DrawRobotMargin(length, width, wheel_base, track_width, safety_margin, local_viz_msg_);
     // float radius_of_turning_min = fabs(1/curvature_candidate) - (0.5*(width - track_width) + 0.5*track_width + safety_margin);
     // visualization::DrawPathOption(curvature_candidate, radius_of_turning_min*freePathLengthCandidate, 0.5*width+safety_margin, local_viz_msg_);
-    // std::cout << "C: "<< curvature_candidate << ", FPL: " << freePathLengthCandidate << ", DTG: " 
-              // << dtgWeight*distanceToGoalCandidate << ", Cl: " << clWeight*clearanceCandidate << ", S: " <<score << "\n";
 
   
   for(uint32_t i = 0; i < global_path_.size(); i++) {
@@ -642,6 +670,7 @@ void Navigation::Run() {
     }
   }
 
+  std::cout << "Speed: " << drive_msg_.velocity << "\n";
   // Publish messages.
   viz_pub_.publish(local_viz_msg_);
   viz_pub_.publish(global_viz_msg_);

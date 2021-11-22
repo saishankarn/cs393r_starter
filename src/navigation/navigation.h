@@ -78,10 +78,15 @@ class Navigation {
                                                        const Eigen::Vector2f& localGoal,
                                                        Eigen::Vector2f& closest_point);
 
-  bool PathCircleIntersection(const std::vector<Eigen::Vector2f>& path,
+bool FindPathCircleIntersection(const std::vector<Eigen::Vector2f>& path,
                                         const Eigen::Vector2f& circle_center,
                                         float radius,
-                                        Eigen::Vector2f* point);
+                                        Eigen::Vector2f& point);
+  bool FindLineSegmentCircleIntersections(const Eigen::Vector2f& point1,
+                                             const Eigen::Vector2f& point2,
+                                             const Eigen::Vector2f& center,
+                                             float radius,
+                                             Eigen::Vector2f& intersection);
   Eigen::Vector2f TransformAndEstimatePointCloud(float x, float y, float theta, Eigen::Vector2f pt);
   int Hash(std::pair< int, int > disc_coord);
   std::pair< int, int > Dehash(int hash);
