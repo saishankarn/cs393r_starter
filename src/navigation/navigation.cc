@@ -2,7 +2,7 @@
 //  This software is free: you can redistribute it and/or modify
 //  it under the terms of the GNU Lesser General Public License Version 3,
 //  as published by the Free Software Foundation.
-// 
+//
 //  This software is distributed in the hope that it will be useful,
 //  but WITHOUT ANY WARRANTY; without even the implied warranty of
 //  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
@@ -18,7 +18,7 @@
 \author  Joydeep Biswas, (C) 2019
 */
 //========================================================================
-#include "gflags/gflags.h" 
+#include "gflags/gflags.h"
 #include "eigen3/Eigen/Dense"
 #include "eigen3/Eigen/Geometry"
 #include "amrl_msgs/AckermannCurvatureDriveMsg.h"
@@ -54,7 +54,7 @@ AckermannCurvatureDriveMsg drive_msg_;
 // Epsilon value for handling limited numerical precision.
 const float kEpsilon = 1e-5;
 const float kInf = 1e5;
-const float dtgWeight = -0.05;
+const float dtgWeight = -0.5;
 const float clWeight = 50.0;//200;
 } //namespace
 
@@ -87,7 +87,7 @@ Navigation::Navigation(const string& map_file, ros::NodeHandle* n) :
 }
 
 std::tuple<Eigen::Vector2f, float> Navigation::getRelativePose(
-  const Eigen::Vector2f initPos, float initAngle, 
+  const Eigen::Vector2f initPos, float initAngle,
   const Eigen::Vector2f endPos, float endAngle) const {
 
   Eigen::Rotation2Df rotMat(initAngle);
@@ -105,25 +105,28 @@ std::tuple<float, float, float> Navigation::GetPathScoringParams(float curvature
   float freePathLength = 5.0;
   float distanceToGoal = 0.0;
   float clearance = 5.0;
-  
+
   // Handle case when point_cloud has no points
   if (point_cloud_.size() == 0)
     return std::make_tuple(freePathLength, distanceToGoal, clearance);
-  
+
   // Case-1 : Moving in an arc
   if (fabs(curvature_of_turning) > kEpsilon) {
     float radius_of_turning_nominal = fabs(1/curvature_of_turning); // radius of turning of the robot origin
     float direction_of_turning = (signbit(curvature_of_turning) ?  -1 : 1); //1: left turn, -1: right turn
     Eigen::Vector2f center_of_turning(0, radius_of_turning_nominal);
-    
+
     // Evaluate the minimum and maximum radius of the robot swept volume
     float x_eval = radius_of_turning_nominal + 0.5*(width - track_width) + 0.5*track_width + safety_margin;
     float y_eval = 0.5*(length - wheel_base) + wheel_base + safety_margin;
-    float radius_of_turning_max = sqrt(x_eval*x_eval + y_eval*y_eval); // front right corner of robot margin boundary 
-    float radius_of_turning_min = radius_of_turning_nominal - (0.5*(width - track_width) + 0.5*track_width + safety_margin); // side left point of robot margin boundary
+    // front right corner of robot margin boundary
+    float radius_of_turning_max = sqrt(x_eval*x_eval + y_eval*y_eval);
+    float radius_of_turning_min = radius_of_turning_nominal -
+                                  (0.5*(width - track_width) +
+                                  0.5*track_width + safety_margin); // side left point of robot margin boundary
     float X = 0.5*wheel_base + 0.5*length + safety_margin;
     float Y = 0.5*width + safety_margin;
-    
+
     float smallest_angular_distance = 17*M_PI/18; // TODO : Something better to avoid full circular motions
     //float alpha_min = 17*M_PI/18;
 
@@ -132,7 +135,7 @@ std::tuple<float, float, float> Navigation::GetPathScoringParams(float curvature
     float rcs_theta_future = (vel_profile[0] * del_t) / radius_of_turning_nominal;
     float rcs_x_future = radius_of_turning_nominal * sin(rcs_theta_future);
     float rcs_y_future = radius_of_turning_nominal * (1 - cos(rcs_theta_future));
-    
+
     //float rcs_theta_future = 0.0;
     //float rcs_x_future = 0.0;
     //float rcs_y_future = 0.0;
@@ -141,28 +144,30 @@ std::tuple<float, float, float> Navigation::GetPathScoringParams(float curvature
     for (unsigned int i = 0; i < point_cloud_.size(); i++) {
       Eigen::Vector2f point_candidate = TransformAndEstimatePointCloud(rcs_x_future,
       rcs_y_future, rcs_theta_future, point_cloud_[i]);
-      
-      // Make turning right have same equations as turning left 
-      point_candidate.y() = direction_of_turning*point_candidate.y();   
+
+      // Make turning right have same equations as turning left
+      point_candidate.y() = direction_of_turning*point_candidate.y();
       float radius_of_point_candidate = (point_candidate - center_of_turning).norm();
-      
+
       // Check if there exists a possibility of collision with the robot
-      if (radius_of_point_candidate <= radius_of_turning_max && radius_of_point_candidate >= radius_of_turning_min) {
+      if (radius_of_point_candidate <= radius_of_turning_max &&
+          radius_of_point_candidate >= radius_of_turning_min) {
         float beta_1 = kInf;
         float beta_2 = kInf;
-        
+
         if (fabs(X) <= radius_of_point_candidate) {
           beta_1 = asin(X/radius_of_point_candidate); // Returns a value between 0 and pi/2
         }
         if (fabs(radius_of_turning_nominal - Y) <= radius_of_point_candidate)
-          beta_2 = acos((radius_of_turning_nominal - Y)/radius_of_point_candidate); // Returns a value between 0 and pi/2
-        
+          beta_2 = acos((radius_of_turning_nominal - Y)/radius_of_point_candidate);
+          // Returns a value between 0 and pi/2
+
         float beta = fmin(beta_1, beta_2);
-        
+
         if (beta != kInf) {
           float alpha = atan2(point_candidate.x(), radius_of_turning_nominal - point_candidate.y());
           float angular_distance = alpha - beta;
-          if (angular_distance > 0) {// Checks if the point is in front of the robot 
+          if (angular_distance > 0) {// Checks if the point is in front of the robot
             if (angular_distance < smallest_angular_distance) {
                 collision_point = point_cloud_[i]; // just for visualization
                 smallest_angular_distance = angular_distance;
@@ -178,15 +183,17 @@ std::tuple<float, float, float> Navigation::GetPathScoringParams(float curvature
     freePathLength = std::min(freePathLength, float(5.0));
 
     // Finding the clearance.
-    for (unsigned int i = 0; i < point_cloud_.size(); i++) {// TODO : Alternate to iterating through the point cloud again
+    for (unsigned int i = 0; i < point_cloud_.size(); i++) {
+      // TODO : Alternate to iterating through the point cloud again
       Eigen::Vector2f point_candidate = TransformAndEstimatePointCloud(rcs_x_future,
       rcs_y_future, rcs_theta_future, point_cloud_[i]);
-      
-      // Make turning right have same equations as turning left 
-      point_candidate.y() = direction_of_turning*point_candidate.y();   
+
+      // Make turning right have same equations as turning left
+      point_candidate.y() = direction_of_turning*point_candidate.y();
       float radius_of_point_candidate = (point_candidate - center_of_turning).norm();
 
-      float point_candidate_angular_distance = atan2(point_candidate.x(), radius_of_turning_nominal - point_candidate.y());
+      float point_candidate_angular_distance = atan2(point_candidate.x(),
+                                                     radius_of_turning_nominal - point_candidate.y());
       // std::cout << "alpha_min: " << alpha_min << "\n";
       //if ((point_candidate_angular_distance < alpha_min) && (point_candidate_angular_distance > 0.0)) {
       if (point_candidate_angular_distance > -M_PI/6) {
@@ -201,13 +208,13 @@ std::tuple<float, float, float> Navigation::GetPathScoringParams(float curvature
 
     // Finding the distance to goal.
     distanceToGoal = fabs((Eigen::Vector2f(localGoal.x(),localGoal.y()*direction_of_turning)
-                           - Vector2f(0, radius_of_turning_nominal)).norm() 
+                           - Vector2f(0, radius_of_turning_nominal)).norm()
                           - radius_of_turning_nominal);
 
   }
-  
+
   // Case-2: Moving in a straight line
-  else {  
+  else {
     freePathLength = 20.0;
     clearance = 10.0;
 
@@ -226,7 +233,7 @@ std::tuple<float, float, float> Navigation::GetPathScoringParams(float curvature
         float pathLength = point_candidate.x();
         freePathLength = std::min(pathLength, freePathLength);
         }
-        else{ 
+        else{
         clearance = std::min(clearance, fabs(point_candidate.y()) - sweptBound);
         }
       }
@@ -270,7 +277,7 @@ float Navigation::OneDTimeOptimalControl(float v0, float distance_remaining){
 
 void Navigation::UpdateVelocityProfile(float last_vel){
   for(int vel_idx = 0; vel_idx < system_lat-1; vel_idx++){
-    vel_profile[vel_idx] = vel_profile[vel_idx+1];  
+    vel_profile[vel_idx] = vel_profile[vel_idx+1];
   }
   vel_profile[system_lat-1] = last_vel;
 }
@@ -314,56 +321,26 @@ void Navigation::UpdateOdometry(const Vector2f& loc,
 
 void Navigation::ObservePointCloud(const vector<Vector2f>& cloud,
                                    double time) {
-  point_cloud_ = cloud;    
+  point_cloud_ = cloud;
 
 }
 
 std::vector<std::pair<int, int>> Navigation::UnobstructedNeighbors(std::pair<int,int> disc_coord) {
   std::vector<std::pair<int, int>> unobstructed_neighbors;
-  float tol = 0.5;
   bool valid_neighbor;
   for (int col_offset = -1; col_offset <= 1; ++col_offset) {
     for (int row_offset = -1; row_offset <= 1; ++row_offset) {
       valid_neighbor = true;
       int row = row_offset + disc_coord.first;
       int col = col_offset + disc_coord.second;
-      
-      if ( !((col_offset == 0) && (row_offset == 0) /*&& (row > 0) && (col > 0) && (row < 1000) && (col < 1000)*/ )) {
-        std::pair<int, int> neighbor{ row, col };
 
-        std::pair<int, int> center1{ disc_coord.first+tol, disc_coord.second+tol};
-        std::pair<int, int> center2{ disc_coord.first-tol, disc_coord.second-tol};
-        std::pair<int, int> center3{ disc_coord.first+tol, disc_coord.second-tol};
-        std::pair<int, int> center4{ disc_coord.first-tol, disc_coord.second+tol};
+      if ( !((col_offset == 0) && (row_offset == 0))) {
+        std::pair<int, int> neighbor{row, col};
+        geometry::line2f linep1{DiscCoordToMap(disc_coord), DiscCoordToMap(neighbor)};
 
-        std::pair<int, int> neighbor1{ row+tol, col+tol };
-        std::pair<int, int> neighbor2{ row-tol, col-tol };
-        std::pair<int, int> neighbor3{ row+tol, col-tol };
-        std::pair<int, int> neighbor4{ row-tol, col+tol };
-        geometry::line2f linep1{ DiscCoordToMap(center1), DiscCoordToMap(neighbor1) };
-        geometry::line2f linep2{ DiscCoordToMap(center1), DiscCoordToMap(neighbor2) };
-        geometry::line2f linep3{ DiscCoordToMap(center1), DiscCoordToMap(neighbor3) };
-        geometry::line2f linep4{ DiscCoordToMap(center1), DiscCoordToMap(neighbor4) };
-        geometry::line2f linep5{ DiscCoordToMap(center2), DiscCoordToMap(neighbor1) };
-        geometry::line2f linep6{ DiscCoordToMap(center2), DiscCoordToMap(neighbor2) };
-        geometry::line2f linep7{ DiscCoordToMap(center2), DiscCoordToMap(neighbor3) };
-        geometry::line2f linep8{ DiscCoordToMap(center2), DiscCoordToMap(neighbor4) };
-        geometry::line2f linep9{ DiscCoordToMap(center3), DiscCoordToMap(neighbor1) };
-        geometry::line2f linep10{ DiscCoordToMap(center3), DiscCoordToMap(neighbor2) };
-        geometry::line2f linep11{ DiscCoordToMap(center3), DiscCoordToMap(neighbor3) };
-        geometry::line2f linep12{ DiscCoordToMap(center3), DiscCoordToMap(neighbor4) };
-        geometry::line2f linep13{ DiscCoordToMap(center4), DiscCoordToMap(neighbor1) };
-        geometry::line2f linep14{ DiscCoordToMap(center4), DiscCoordToMap(neighbor2) };
-        geometry::line2f linep15{ DiscCoordToMap(center4), DiscCoordToMap(neighbor3) };
-        geometry::line2f linep16{ DiscCoordToMap(center4), DiscCoordToMap(neighbor4) };
-        
         // Is the neighbor unobstructed?
         for (size_t i = 0; i < map_.lines.size(); ++i) {
-          if(map_.lines[i].Intersects(linep1) || map_.lines[i].Intersects(linep2)  || map_.lines[i].Intersects(linep3) || map_.lines[i].Intersects(linep4)
-            || map_.lines[i].Intersects(linep5)  || map_.lines[i].Intersects(linep6) || map_.lines[i].Intersects(linep7)
-            || map_.lines[i].Intersects(linep8)  || map_.lines[i].Intersects(linep9) || map_.lines[i].Intersects(linep10)
-            || map_.lines[i].Intersects(linep11)  || map_.lines[i].Intersects(linep12) || map_.lines[i].Intersects(linep13)
-            || map_.lines[i].Intersects(linep14)  || map_.lines[i].Intersects(linep15) || map_.lines[i].Intersects(linep16)) {
+          if(map_.lines[i].Intersects(linep1)) {
             valid_neighbor = false;
             break;
           }
@@ -385,8 +362,8 @@ Eigen::Vector2f Navigation::DiscCoordToMap(std::pair<int, int> disc_coord)
 
 
 std::pair<int, int> Navigation::DiscretizeCoord( Eigen::Vector2f coord ) {
-  return std::make_pair(static_cast<int>(coord.x()/nav_grid_resolution_), 
-                        static_cast<int>(coord.y()/nav_grid_resolution_)); 
+  return std::make_pair(static_cast<int>(coord.x()/nav_grid_resolution_),
+                        static_cast<int>(coord.y()/nav_grid_resolution_));
 }
 
 int Navigation::Hash(std::pair<int, int> disc_coord)
@@ -399,49 +376,55 @@ std::pair<int, int> Navigation::Dehash(int hash) {
     return std::make_pair(hash/hash_coefficient_ + 1, hash%hash_coefficient_ - hash_coefficient_);
   else if (hash%hash_coefficient_ < -hash_coefficient_/2)
     return std::make_pair(hash/hash_coefficient_ - 1, hash%hash_coefficient_ + hash_coefficient_);
-  else 
+  else
     return std::make_pair(hash/hash_coefficient_, hash%hash_coefficient_);
 }
 
-void Navigation::Plan(const Eigen::Vector2f& start_loc, 
-                      const Eigen::Vector2f& finish_loc, 
+void Navigation::Plan(const Eigen::Vector2f& start_loc,
+                      const Eigen::Vector2f& finish_loc,
                       std::vector<Eigen::Vector2f>& plan) {
-  
+
   // Initialize priority queue
   SimpleQueue<int, float> plan_queue;
   std::pair<int, int> grid_start  = DiscretizeCoord(start_loc);
   plan_queue.Push(Hash(grid_start), 0);
-  // std::cout << "Discretized start location: (" << grid_start.first << ", " << grid_start.second << "); Hash: " << Hash(grid_start) << "\n";
-  
+  // std::cout << "Discretized start location: (" << grid_start.first << ", "
+  //           << grid_start.second << "); Hash: " << Hash(grid_start) << "\n";
+
   // Initialize dictionary
-  std::map<int, int>backtrack{ {Hash(grid_start), Hash(grid_start)} }; 
+  std::map<int, int>backtrack{ {Hash(grid_start), Hash(grid_start)} };
   std::map< int, float >cost_table{ {Hash(grid_start), 0.0} };
 
   std::pair<int, int> grid_finish = DiscretizeCoord(finish_loc);
-  // std::cout << "Discretized finish location: (" << grid_finish.first << ", " << grid_finish.second << "); Hash: " << Hash(grid_finish) << "\n";
-  
+  // std::cout << "Discretized finish location: (" << grid_finish.first
+  //           << ", " << grid_finish.second << "); Hash: " << Hash(grid_finish) << "\n";
+
   while(!plan_queue.Empty())
   {
     std::pair<int, int> current_loc = Dehash(plan_queue.Pop());
-    // std::cout << "----- Discretized current location: (" << current_loc.first << ", " << current_loc.second << "); Hash: " << Hash(current_loc) << "\n";
-    
+    // std::cout << "----- Discretized current location: (" << current_loc.first
+    //           << ", " << current_loc.second << "); Hash: " << Hash(current_loc) << "\n";
+
     if(current_loc.first == grid_finish.first && current_loc.second == grid_finish.second) {
       break;
     }
 
     std::vector<std::pair<int, int>> unobstructed_neighbors = UnobstructedNeighbors(current_loc);
-    
+
     for(const auto& unobstructed_neighbor: unobstructed_neighbors ) {
-      
-      // std::cout << "Discretized neighbour location: (" << unobstructed_neighbor.first << ", " << unobstructed_neighbor.second << "); Hash: " << Hash(unobstructed_neighbor) << "\n";
-      float const new_cost = cost_table.at(Hash(current_loc)) + (DiscCoordToMap(current_loc) - DiscCoordToMap(unobstructed_neighbor)).norm();
+
+      // std::cout << "Discretized neighbour location: (" << unobstructed_neighbor.first << ", "
+      //           << unobstructed_neighbor.second << "); Hash: " << Hash(unobstructed_neighbor) << "\n";
+      float const new_cost = cost_table.at(Hash(current_loc)) +
+                             (DiscCoordToMap(current_loc) -
+                             DiscCoordToMap(unobstructed_neighbor)).norm();
       // std::cout << "Cost: " << new_cost << "\n";
 
       if(cost_table.find(Hash(unobstructed_neighbor)) == cost_table.end() ||
           new_cost < cost_table.at(Hash(unobstructed_neighbor)))
       {
         cost_table[Hash(unobstructed_neighbor)] = new_cost;
-      
+
         float prio = -(new_cost + (DiscCoordToMap(grid_finish) - DiscCoordToMap(unobstructed_neighbor)).norm());
 
         // std::cout << "Priority: " << prio << "\n";
@@ -454,7 +437,7 @@ void Navigation::Plan(const Eigen::Vector2f& start_loc,
   // Create path
   int current = Hash(grid_finish);
   plan.push_back(finish_loc);
-  while(current != Hash(grid_start) ) 
+  while(current != Hash(grid_start) )
   {
     plan.push_back(DiscCoordToMap(Dehash(current)));
     current = backtrack.at(current);
@@ -462,21 +445,12 @@ void Navigation::Plan(const Eigen::Vector2f& start_loc,
   plan.push_back(DiscCoordToMap(Dehash(current)));
   plan.push_back(start_loc);
   reverse(plan.begin(), plan.end());
-  return; 
+  return;
 }
 
 
 
-Vector2f Navigation::TransformAndEstimatePointCloud(float x, float y, float theta, Vector2f pt){
-  // Eigen::Matrix3f T;
-  // T << cos(theta), -sin(theta), x, 
-  //      sin(theta), cos(theta), y, 
-  //      0, 0, 1;
-  // T = T.inverse();
-  // Eigen::Vector3f pt3(pt[0], pt[1], 1);
-  // pt3 = T*pt3;
-  // return Vector2f(pt3[0], pt3[1]);
-
+Vector2f Navigation::TransformAndEstimatePointCloud(float x, float y, float theta, Vector2f pt) {
   Eigen::Affine2f T;
   T = Eigen::Translation2f(x, y)*Eigen::Rotation2Df(theta);
   return T.inverse()*pt;
@@ -488,13 +462,13 @@ bool Navigation::FindPathCircleIntersection(const std::vector<Eigen::Vector2f>& 
                                         Eigen::Vector2f& point) {
   for(uint32_t i = 0; i < path.size(); i++) {
     if(i >= 1) {
-      bool intersects = FindLineSegmentCircleIntersections(path[i-1], path[i], circle_center, radius, 
+      bool intersects = FindLineSegmentCircleIntersections(path[i-1], path[i], circle_center, radius,
                                                            point);
       if (intersects)
         return true;
     }
   }
-  return false;                                    
+  return false;
 }
 
 bool Navigation::FindLineSegmentCircleIntersections(const Eigen::Vector2f& point1,
@@ -560,11 +534,11 @@ bool Navigation::FindLineSegmentCircleIntersections(const Eigen::Vector2f& point
 
 void Navigation::Run() {
   // This function gets called 20 times a second to form the control loop.
-  
+
   // Clear previous visualizations.
   visualization::ClearVisualizationMsg(local_viz_msg_);
   visualization::ClearVisualizationMsg(global_viz_msg_);
- 
+
   // If odometry has not been initialized, we can't do anything.
   if (!odom_initialized_) return;
 
@@ -572,7 +546,7 @@ void Navigation::Run() {
   Eigen::Vector2f relPos;
   float relAngle;
   std::tie(relPos, relAngle) = getRelativePose(odom_start_loc_, odom_start_angle_, odom_loc_, odom_angle_);
-  
+
   if (nav_goal_set_) {
     // Global planner.
     std::vector<Eigen::Vector2f> plan;
@@ -609,24 +583,24 @@ void Navigation::Run() {
       Eigen::Vector2f collision_point_candidate;
       distance_remaining = 0.0; // setting a minimum value of zero
       float best_score = -kInf;
-      
+
       float curvature_candidate;
       float freePathLengthCandidate;
       float distanceToGoalCandidate;
       float clearanceCandidate;
 
-      for (curvature_candidate = 1.05; curvature_candidate >= -1.06; 
+      for (curvature_candidate = 1.05; curvature_candidate >= -1.06;
            curvature_candidate = curvature_candidate - 0.1) {
-        std::tie(freePathLengthCandidate, distanceToGoalCandidate, clearanceCandidate) = 
-          GetPathScoringParams(curvature_candidate, 
+        std::tie(freePathLengthCandidate, distanceToGoalCandidate, clearanceCandidate) =
+          GetPathScoringParams(curvature_candidate,
                                local_goal,
                                collision_point_candidate);
-        float score = 0.0*freePathLengthCandidate + 
-                      dtgWeight*distanceToGoalCandidate + 
-                      0.0*clWeight*clearanceCandidate;
-        
-        // std::cout << "C: "<< curvature_candidate << ", FPL: " << freePathLengthCandidate 
-        //           << ", DTG: " << dtgWeight*distanceToGoalCandidate 
+        float score = freePathLengthCandidate +
+                      dtgWeight*distanceToGoalCandidate +
+                      clWeight*clearanceCandidate;
+
+        // std::cout << "C: "<< curvature_candidate << ", FPL: " << freePathLengthCandidate
+        //           << ", DTG: " << dtgWeight*distanceToGoalCandidate
         //           << ", Cl: " << clWeight*clearanceCandidate << ", S: " <<score << "\n";
         // Choosing the arc/line with the best score
         if (score > best_score) {
@@ -654,16 +628,18 @@ void Navigation::Run() {
     drive_msg_.velocity = 0.0;
     drive_msg_.curvature = 0.0;
   }
-  
+
   // Create visualizations.
   local_viz_msg_.header.stamp = ros::Time::now();
   global_viz_msg_.header.stamp = ros::Time::now();
   drive_msg_.header.stamp = ros::Time::now();
   visualization::DrawRobotMargin(length, width, wheel_base, track_width, safety_margin, local_viz_msg_);
-    // float radius_of_turning_min = fabs(1/curvature_candidate) - (0.5*(width - track_width) + 0.5*track_width + safety_margin);
-    // visualization::DrawPathOption(curvature_candidate, radius_of_turning_min*freePathLengthCandidate, 0.5*width+safety_margin, local_viz_msg_);
+    // float radius_of_turning_min = fabs(1/curvature_candidate) - (0.5*(width - track_width) +
+    //                               0.5*track_width + safety_margin);
+    // visualization::DrawPathOption(curvature_candidate, radius_of_turning_min*freePathLengthCandidate,
+    //                               0.5*width+safety_margin, local_viz_msg_);
 
-  
+
   for(uint32_t i = 0; i < global_path_.size(); i++) {
     if (i >= 1) {
       visualization::DrawLine(global_path_[i-1], global_path_[i], 0x00FF00, global_viz_msg_);
@@ -675,7 +651,7 @@ void Navigation::Run() {
   viz_pub_.publish(local_viz_msg_);
   viz_pub_.publish(global_viz_msg_);
   drive_pub_.publish(drive_msg_);
-  
+
 }
 
 }  // namespace navigation
