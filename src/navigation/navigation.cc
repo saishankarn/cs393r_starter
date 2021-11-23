@@ -54,8 +54,8 @@ AckermannCurvatureDriveMsg drive_msg_;
 // Epsilon value for handling limited numerical precision.
 const float kEpsilon = 1e-5;
 const float kInf = 1e5;
-const float dtgWeight = -2.0;
-const float clWeight = 2.0;//200;
+const float dtgWeight = -5.0;
+const float clWeight = 1.0;//200;
 } //namespace
 
 namespace navigation {
