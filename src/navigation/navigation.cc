@@ -72,7 +72,7 @@ Navigation::Navigation(const string& map_file, ros::NodeHandle* n) :
     nav_goal_loc_(5, 0),
     nav_goal_angle_(0),
     center_of_curve(0, 0),
-    nav_grid_resolution_(0.5),
+    nav_grid_resolution_(0.25),
     local_planner_circle_radius_(1.0),
     hash_coefficient_(10000){
   drive_pub_ = n->advertise<AckermannCurvatureDriveMsg>(
