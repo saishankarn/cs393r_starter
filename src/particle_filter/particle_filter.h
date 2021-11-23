@@ -95,7 +95,7 @@ class ParticleFilter {
                                        float range_min,
                                        float range_max,
                                        float angle_min,
-                                       float angle_max); 
+                                       float angle_max);
 
  private:
 

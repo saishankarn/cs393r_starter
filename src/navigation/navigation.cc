@@ -54,8 +54,8 @@ AckermannCurvatureDriveMsg drive_msg_;
 // Epsilon value for handling limited numerical precision.
 const float kEpsilon = 1e-5;
 const float kInf = 1e5;
-const float dtgWeight = -0.5;
-const float clWeight = 50.0;//200;
+const float dtgWeight = -2.0;
+const float clWeight = 2.0;//200;
 } //namespace
 
 namespace navigation {
@@ -72,7 +72,7 @@ Navigation::Navigation(const string& map_file, ros::NodeHandle* n) :
     nav_goal_loc_(5, 0),
     nav_goal_angle_(0),
     center_of_curve(0, 0),
-    nav_grid_resolution_(0.5),
+    nav_grid_resolution_(0.25),
     local_planner_circle_radius_(1.0),
     hash_coefficient_(10000){
   drive_pub_ = n->advertise<AckermannCurvatureDriveMsg>(
@@ -298,6 +298,7 @@ void Navigation::UpdateLocation(const Eigen::Vector2f& loc, float angle) {
   localization_initialized_ = true;
   robot_loc_ = loc;
   robot_angle_ = angle;
+  // std::cout << "Update Location: " << robot_loc_ << "\n";
 }
 
 void Navigation::UpdateOdometry(const Vector2f& loc,
@@ -599,9 +600,10 @@ void Navigation::Run() {
                       dtgWeight*distanceToGoalCandidate +
                       clWeight*clearanceCandidate;
 
-        // std::cout << "C: "<< curvature_candidate << ", FPL: " << freePathLengthCandidate
-        //           << ", DTG: " << dtgWeight*distanceToGoalCandidate
-        //           << ", Cl: " << clWeight*clearanceCandidate << ", S: " <<score << "\n";
+        std::cout << "C: "<< curvature_candidate << ", FPL: " << freePathLengthCandidate
+                  << ", DTG: " << dtgWeight*distanceToGoalCandidate
+                  << ", Cl: " << clWeight*clearanceCandidate << ", S: " <<score << "\n";
+
         // Choosing the arc/line with the best score
         if (score > best_score) {
           best_score = score;
@@ -646,7 +648,7 @@ void Navigation::Run() {
     }
   }
 
-  std::cout << "Speed: " << drive_msg_.velocity << "\n";
+  // std::cout << "Navigation run: " << robot_loc_ << "\n";
   // Publish messages.
   viz_pub_.publish(local_viz_msg_);
   viz_pub_.publish(global_viz_msg_);
