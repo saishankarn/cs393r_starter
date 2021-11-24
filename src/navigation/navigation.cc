@@ -55,7 +55,7 @@ AckermannCurvatureDriveMsg drive_msg_;
 const float kEpsilon = 1e-5;
 const float kInf = 1e5;
 const float dtgWeight = -5.0;
-const float clWeight = 1.0;//200;
+const float clWeight = 2.0;//200;
 } //namespace
 
 namespace navigation {
@@ -600,9 +600,9 @@ void Navigation::Run() {
                       dtgWeight*distanceToGoalCandidate +
                       clWeight*clearanceCandidate;
 
-        std::cout << "C: "<< curvature_candidate << ", FPL: " << freePathLengthCandidate
-                  << ", DTG: " << dtgWeight*distanceToGoalCandidate
-                  << ", Cl: " << clWeight*clearanceCandidate << ", S: " <<score << "\n";
+        // std::cout << "C: "<< curvature_candidate << ", FPL: " << freePathLengthCandidate
+        //           << ", DTG: " << dtgWeight*distanceToGoalCandidate
+        //           << ", Cl: " << clWeight*clearanceCandidate << ", S: " <<score << "\n";
 
         // Choosing the arc/line with the best score
         if (score > best_score) {
