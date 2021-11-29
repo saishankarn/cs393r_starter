@@ -7,7 +7,7 @@
 //  but WITHOUT ANY WARRANTY; without even the implied warranty of
 //  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 //  GNU Lesser General Public License for more details.
-// 
+//
 //  You should have received a copy of the GNU Lesser General Public License
 //  Version 3 in the file COPYING that came with this distribution.
 //  If not, see <http://www.gnu.org/licenses/>.
@@ -18,7 +18,7 @@
 \author  Joydeep Biswas, (C) 2019
 */
 //========================================================================
- 
+
 #include <vector>
 
 #include "eigen3/Eigen/Dense"
@@ -61,8 +61,8 @@ class Navigation {
   // Updates based on an observed laser scan
   void ObservePointCloud(const std::vector<Eigen::Vector2f>& cloud,
                          double time);
-  void Plan(const Eigen::Vector2f& start_loc, 
-            const Eigen::Vector2f& finish_loc, 
+  void Plan(const Eigen::Vector2f& start_loc,
+            const Eigen::Vector2f& finish_loc,
             std::vector<Eigen::Vector2f>& plan);
   // Main function called continously from main
   void Run();
@@ -70,11 +70,11 @@ class Navigation {
   void SetNavGoal(const Eigen::Vector2f& loc, float angle);
   // Controller function to determine the next time-step command velocity
   float OneDTimeOptimalControl(float v0, float distRem);
-  // to transform poses 
-  std::tuple<Eigen::Vector2f, float> getRelativePose(const Eigen::Vector2f initPos, float initAngle, 
-    const Eigen::Vector2f endPos, float endAngle) const; 
+  // to transform poses
+  std::tuple<Eigen::Vector2f, float> getRelativePose(const Eigen::Vector2f initPos, float initAngle,
+    const Eigen::Vector2f endPos, float endAngle) const;
 
-  std::tuple<float, float, float> GetPathScoringParams(float curvature_of_turning, 
+  std::tuple<float, float, float> GetPathScoringParams(float curvature_of_turning,
                                                        const Eigen::Vector2f& localGoal,
                                                        Eigen::Vector2f& closest_point);
 
@@ -111,14 +111,14 @@ bool FindPathCircleIntersection(const std::vector<Eigen::Vector2f>& path,
   // Odometry-reported robot location.
   Eigen::Vector2f odom_loc_;
   // Odometry-reported robot angle.
-  float odom_angle_; 
+  float odom_angle_;
   // Odometry-reported robot starting location.
   Eigen::Vector2f odom_start_loc_;
   // Odometry-reported robot starting angle.
   float odom_start_angle_;
   // Latest observed point cloud.
   std::vector<Eigen::Vector2f> point_cloud_;
-  
+
   // Whether navigation is complete.
   bool nav_complete_;
   // Whether navigation goal is set.
@@ -130,7 +130,7 @@ bool FindPathCircleIntersection(const std::vector<Eigen::Vector2f>& path,
 
   std::vector<Eigen::Vector2f> global_path_;
 
-  // kinematic variables 
+  // kinematic variables
   float max_acc = 4.0;
   float max_dec = 4.0;
   float max_vel = 0.5;
@@ -140,13 +140,16 @@ bool FindPathCircleIntersection(const std::vector<Eigen::Vector2f>& path,
   const static int system_lat = act_lat + sens_lat;
   float vel_profile[system_lat] = {0};
   float vel_sum = 0;
+  uint8_t log_interval_ = 1;
+  uint8_t time_step_ = 0;
+  uint32_t log_step_ = 0;
 
   // navigation variables
   float length = 0.55;
   float width = 0.3;
   float wheel_base = 0.32;
   float track_width = 0.16;
-  float safety_margin = 0.05; 
+  float safety_margin = 0.05;
 
   Eigen::Vector2f center_of_curve;
   float nav_grid_resolution_;

@@ -153,7 +153,7 @@ void LocalizationCallback(const amrl_msgs::Localization2DMsg msg) {
 
 int main(int argc, char** argv) {
   google::ParseCommandLineFlags(&argc, &argv, false);
-  signal(SIGINT, SignalHandler); 
+  signal(SIGINT, SignalHandler);
   // Initialize ROS.
   ros::init(argc, argv, "navigation", ros::init_options::NoSigintHandler);
   ros::NodeHandle n;
@@ -166,7 +166,7 @@ int main(int argc, char** argv) {
   ros::Subscriber laser_sub =
       n.subscribe(FLAGS_laser_topic, 1, &LaserCallback);
   ros::Subscriber goto_sub =
-      n.subscribe("/move_base_simple/goal", 1, &GoToCallback); 
+      n.subscribe("/move_base_simple/goal", 1, &GoToCallback);
 
   RateLoop loop(20.0);
   while (run_ && ros::ok()) {

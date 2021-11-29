@@ -35,6 +35,7 @@
 #include "shared/math/line2d.h"
 #include "simple_queue.h"
 #include "vector_map/vector_map.h"
+#include <fstream>
 
 using Eigen::Vector2f;
 using amrl_msgs::AckermannCurvatureDriveMsg;
@@ -54,7 +55,7 @@ AckermannCurvatureDriveMsg drive_msg_;
 // Epsilon value for handling limited numerical precision.
 const float kEpsilon = 1e-5;
 const float kInf = 1e5;
-const float dtgWeight = -5.0;
+const float dtgWeight = -10.0;
 const float clWeight = 2.0;//200;
 } //namespace
 
@@ -86,15 +87,36 @@ Navigation::Navigation(const string& map_file, ros::NodeHandle* n) :
    map_ = vector_map::VectorMap(map_file);
 }
 
-std::tuple<Eigen::Vector2f, float> Navigation::getRelativePose(
-  const Eigen::Vector2f initPos, float initAngle,
-  const Eigen::Vector2f endPos, float endAngle) const {
+static void savePointCloud(std::string fileName, const std::vector<Eigen::Vector2f>& pointCloud)
+{
+    //https://eigen.tuxfamily.org/dox/structEigen_1_1IOFormat.html
+    // const static Eigen::IOFormat CSVFormat(Eigen::FullPrecision, Eigen::DontAlignCols, ", ", "\n");
+    const static Eigen::IOFormat CommaInitFmt(Eigen::FullPrecision,
+                                              Eigen::DontAlignCols,
+                                              ", ", ", ", "", "", "", "\n");
 
-  Eigen::Rotation2Df rotMat(initAngle);
-  Eigen::Vector2f pos = rotMat.toRotationMatrix().inverse()*(endPos - initPos);
-  float angle = endAngle - initAngle;
+    std::ofstream file(fileName);
+    if (file.is_open()) {
+      for (const Eigen::Vector2f& point : pointCloud) {
+        file << point.format(CommaInitFmt);
+      }
+      file.close();
+    }
+}
 
-  return std::make_tuple(pos, angle);
+static void savePoses(std::string fileName, const Eigen::Vector2f& loc, const float& angle)
+{
+    Eigen::Vector3f pose;
+    pose << loc[0], loc[1], angle;
+
+    const static Eigen::IOFormat CommaInitFmt(Eigen::FullPrecision,
+                                              Eigen::DontAlignCols,
+                                              ", ", ", ", "", "", "", "\n");
+    std::ofstream file(fileName, std::ios::app);
+    if (file.is_open()) {
+      file << pose.format(CommaInitFmt);
+      file.close();
+    }
 }
 
 // Inputs:  Curvature of turning
@@ -106,7 +128,7 @@ std::tuple<float, float, float> Navigation::GetPathScoringParams(float curvature
   float distanceToGoal = 0.0;
   float clearance = 5.0;
 
-  // Handle case when point_cloud has no points
+  // Handle case when point_cloud_ has no points
   if (point_cloud_.size() == 0)
     return std::make_tuple(freePathLength, distanceToGoal, clearance);
 
@@ -543,11 +565,7 @@ void Navigation::Run() {
   // If odometry has not been initialized, we can't do anything.
   if (!odom_initialized_) return;
 
-  // Get the location of the robot with respect to its initial reference frame.
-  Eigen::Vector2f relPos;
-  float relAngle;
-  std::tie(relPos, relAngle) = getRelativePose(odom_start_loc_, odom_start_angle_, odom_loc_, odom_angle_);
-
+  // Global planner is initialized only after the global navigation target is set.
   if (nav_goal_set_) {
     // Global planner.
     std::vector<Eigen::Vector2f> plan;
@@ -613,6 +631,16 @@ void Navigation::Run() {
         }
       }
       visualization::DrawPath(drive_msg_.curvature, freePathLengthCandidate, 0xFFA500, local_viz_msg_);
+
+      // Write point cloud data to file
+      if (time_step_%log_interval_ == 0) {
+        savePointCloud("saved_data/traj_3/pose_" + std::to_string(log_step_) + ".csv",
+                      point_cloud_);
+        savePoses("saved_data/traj_3/pose_list.csv", robot_loc_, robot_angle_);
+        log_step_++;
+        time_step_ = 0;
+      }
+      time_step_++;
     }
 
     // // Adjust the distance traveled by taking into account the latency compensation.
@@ -625,6 +653,7 @@ void Navigation::Run() {
     float v0 = vel_profile[system_lat - 1];
     drive_msg_.velocity = OneDTimeOptimalControl(v0, distance_remaining);
     UpdateVelocityProfile(drive_msg_.velocity);
+
   }
   else {
     drive_msg_.velocity = 0.0;
