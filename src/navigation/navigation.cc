@@ -57,6 +57,7 @@ const float kEpsilon = 1e-5;
 const float kInf = 1e5;
 const float dtgWeight = -10.0;
 const float clWeight = 2.0;//200;
+const std::string saved_data_traj_folder = "traj_11";
 } //namespace
 
 namespace navigation {
@@ -96,7 +97,9 @@ static void savePointCloud(std::string fileName, const std::vector<Eigen::Vector
                                               ", ", ", ", "", "", "", "\n");
 
     std::ofstream file(fileName);
+    std::cout << "savePointCloud" << "\n";
     if (file.is_open()) {
+      std::cout << "savePointCloud fileOpen" << "\n";
       for (const Eigen::Vector2f& point : pointCloud) {
         file << point.format(CommaInitFmt);
       }
@@ -113,7 +116,9 @@ static void savePoses(std::string fileName, const Eigen::Vector2f& loc, const fl
                                               Eigen::DontAlignCols,
                                               ", ", ", ", "", "", "", "\n");
     std::ofstream file(fileName, std::ios::app);
+    std::cout << "savePoses" << "\n";
     if (file.is_open()) {
+      std::cout << "savePoses fileOpen" << "\n";
       file << pose.format(CommaInitFmt);
       file.close();
     }
@@ -634,10 +639,11 @@ void Navigation::Run() {
 
       // Write point cloud data to file
       if (time_step_%log_interval_ == 0) {
-        savePointCloud("saved_data/traj_3/pose_" + std::to_string(log_step_) + ".csv",
+        std::cout << log_step_ << "\n";
+        savePointCloud("saved_data/" + saved_data_traj_folder + "/pose_" + std::to_string(log_step_) + ".csv",
                       point_cloud_);
-        savePoses("saved_data/traj_3/pose_list.csv", robot_loc_, robot_angle_);
-        log_step_++;
+        savePoses("saved_data/" + saved_data_traj_folder + "/pose_list.csv", robot_loc_, robot_angle_);
+        log_step_ = log_step_ + 1;
         time_step_ = 0;
       }
       time_step_++;
