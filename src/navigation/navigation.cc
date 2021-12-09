@@ -57,7 +57,7 @@ const float kEpsilon = 1e-5;
 const float kInf = 1e5;
 const float dtgWeight = -10.0;
 const float clWeight = 2.0;//200;
-const std::string saved_data_traj_folder = "traj_11";
+const static std::string saved_data_traj_folder = "traj_11";
 } //namespace
 
 namespace navigation {

@@ -34,7 +34,7 @@
 #include "shared/math/statistics.h"
 #include "shared/util/timer.h"
 #include "visualization/CImg.h"
-
+#include <fstream>
 #include "slam.h"
 
 #include "vector_map/vector_map.h"
@@ -72,6 +72,7 @@ DEFINE_double(std_k1, 0.2, "Translation dependence on translation standard devia
 DEFINE_double(std_k2, 0.2, "Rotation dependence on translation standard deviation");
 DEFINE_double(std_k3, 0.5, "Translation dependence on rotation standard deviation");
 DEFINE_double(std_k4, 1.0, "Rotation dependence on rotation standard deviation");
+const static std::string saved_data_traj_folder = "traj_11";
 
 SLAM::SLAM() :
     prev_odom_loc_(0, 0),
@@ -84,6 +85,21 @@ void SLAM::GetPose(Eigen::Vector2f* loc, float* angle) const {
   // Return the latest pose estimate of the robot.
   *loc = curr_robot_loc_;
   *angle = curr_robot_angle_;
+}
+
+static void savePoses(std::string fileName, const Eigen::Vector2f& loc, const float& angle)
+{
+    Eigen::Vector3f pose;
+    pose << loc[0], loc[1], angle;
+
+    const static Eigen::IOFormat CommaInitFmt(Eigen::FullPrecision,
+                                              Eigen::DontAlignCols,
+                                              ", ", ", ", "", "", "", "\n");
+    std::ofstream file(fileName, std::ios::app);
+    if (file.is_open()) {
+      file << pose.format(CommaInitFmt);
+      file.close();
+    }
 }
 
 float SLAM::GetObservationLikelihood(Eigen::MatrixXf& rasterized_cost,
@@ -131,10 +147,10 @@ Eigen::MatrixXf SLAM::GetRasterizedCost(const std::vector<Vector2f>& point_cloud
                                         float range_max,
                                         float angle_min,
                                         float angle_max){
-  // Takes lidar scan as input and returns the cost array as ouput 
-  
-  // 1. convert the lidar scan from ranges to (x, y) coordinates 
-  
+  // Takes lidar scan as input and returns the cost array as ouput
+
+  // 1. convert the lidar scan from ranges to (x, y) coordinates
+
   // 2. calculating the sum log-likelihood scores
   int dim = floor(2 * FLAGS_map_range / FLAGS_map_resolution) + 1; // 600
   float log_pdf_value;
@@ -144,7 +160,7 @@ Eigen::MatrixXf SLAM::GetRasterizedCost(const std::vector<Vector2f>& point_cloud
   std::vector<float> log_likelihood_list;
   for(int row_idx = 0; row_idx < dim; row_idx++){
     for(int col_idx = 0; col_idx < dim; col_idx++){
-      Vector2f grid_pt(minXorY + col_idx * FLAGS_map_resolution, 
+      Vector2f grid_pt(minXorY + col_idx * FLAGS_map_resolution,
                        minXorY + row_idx * FLAGS_map_resolution);
       float pdf_value = 0.0;
       for(int ranges_idx = 0; ranges_idx < int(ranges.size()); ranges_idx++){
@@ -175,8 +191,9 @@ void SLAM::ObserveLaser(const vector<float>& ranges,
     robot_locs_.push_back(curr_robot_loc_);
     robot_angles_.push_back(curr_robot_angle_);
     point_clouds.push_back(point_cloud_);
+    savePoses("saved_data/" + saved_data_traj_folder + "/pose_list_CSM.csv", curr_robot_loc_, curr_robot_angle_);
   }
-  
+
   if ((curr_robot_loc_ - robot_locs_.back()).norm() > FLAGS_succ_trans_dist || fabs(curr_robot_angle_ - robot_angles_.back()) > FLAGS_succ_ang_dist) {
     // std::cout << (curr_robot_loc_ - robot_locs_.back()).norm() << endl;
     // std::cout << FLAGS_succ_trans_dist << endl;
@@ -184,12 +201,12 @@ void SLAM::ObserveLaser(const vector<float>& ranges,
     // std::cout << FLAGS_succ_ang_dist << endl;
     std::vector<Vector2f> point_cloud_ = GetPointCloud(ranges, range_min, range_max, angle_min, angle_max);
     Eigen::MatrixXf rasterized_cost = GetRasterizedCost(point_cloud_, ranges, range_min, range_max, angle_min, angle_max);
-    
+
     Eigen::Vector2f curr_robot_loc_new_;
     float curr_robot_angle_new_;
     std::tie(curr_robot_loc_new_, curr_robot_angle_new_) = GetMostLikelyPose(curr_robot_loc_, curr_robot_angle_, robot_locs_.back(),  robot_angles_.back(),
                                                                      rasterized_costs.back(), point_cloud_, range_max);
-    
+
     std::cout << "Previous pose: (" << robot_locs_.back().x() << ", " << robot_locs_.back().y() << ", "
             << math_util::RadToDeg(robot_angles_.back()) << ")" << endl;
     std::cout << "Predicted pose: (" << curr_robot_loc_.x() << ", " << curr_robot_loc_.y() << ", "
@@ -197,17 +214,18 @@ void SLAM::ObserveLaser(const vector<float>& ranges,
     std::cout << "Updated pose: (" << curr_robot_loc_new_.x() << ", " << curr_robot_loc_new_.y() << ", "
             << math_util::RadToDeg(curr_robot_angle_new_) << ")" << endl;
     std::cout << "" << endl;
-    
+
     curr_robot_loc_ = curr_robot_loc_new_;
     curr_robot_angle_ = curr_robot_angle_new_;
     rasterized_costs.push_back(rasterized_cost);
     robot_locs_.push_back(curr_robot_loc_);
     robot_angles_.push_back(curr_robot_angle_);
     point_clouds.push_back(point_cloud_);
+    savePoses("saved_data/" + saved_data_traj_folder + "/pose_list_CSM.csv", curr_robot_loc_, curr_robot_angle_);
   }
 }
 
-std::tuple<Eigen::Vector2f, float> SLAM::GetMostLikelyPose(const Eigen::Vector2f& currSLAMPoseLoc,                                                           
+std::tuple<Eigen::Vector2f, float> SLAM::GetMostLikelyPose(const Eigen::Vector2f& currSLAMPoseLoc,
                                                            const float& currSLAMPoseAngle,
                                                            const Eigen::Vector2f& prevSLAMPoseLoc,
                                                            const float& prevSLAMPoseAngle,
@@ -217,14 +235,14 @@ std::tuple<Eigen::Vector2f, float> SLAM::GetMostLikelyPose(const Eigen::Vector2f
   // Defining the likelihood cube. The size of the cube depends on the magnitude
   // of relative motion measured or more precisely the difference in the odometry
   // readings between successive poses.
-  // The plausible relative transforms are assumed to be within 95%/ 2 sigma of the 
+  // The plausible relative transforms are assumed to be within 95%/ 2 sigma of the
   // gaussin centered at the relative odometry reading.
-  
+
   Eigen::Rotation2Df prevSLAMPoseRInv(-prevSLAMPoseAngle);
   Eigen::Vector2f relSLAMPoseLoc = prevSLAMPoseRInv*(currSLAMPoseLoc - prevSLAMPoseLoc);
-  
+
   float relSLAMPoseAngle = currSLAMPoseAngle - prevSLAMPoseAngle;
-  relSLAMPoseAngle = (fabs(fabs(relSLAMPoseAngle) - 2*M_PI) < fabs(relSLAMPoseAngle)) ? 
+  relSLAMPoseAngle = (fabs(fabs(relSLAMPoseAngle) - 2*M_PI) < fabs(relSLAMPoseAngle)) ?
                  signbit(relSLAMPoseAngle)*(fabs(relSLAMPoseAngle) -2*M_PI) : relSLAMPoseAngle;
 
   float sigmaTrans = FLAGS_std_k1*relSLAMPoseLoc.norm() + FLAGS_std_k2*fabs(relSLAMPoseAngle);
@@ -266,11 +284,11 @@ std::tuple<Eigen::Vector2f, float> SLAM::GetMostLikelyPose(const Eigen::Vector2f
 
   for(int k = 0; k < gridSizeQ; k++) {
     float CandidateQ = (float)(gridQMin + k*FLAGS_gridDelQ);
-    likelihoodMotionModelQ = 
+    likelihoodMotionModelQ =
       statistics::ProbabilityDensityGaussian(CandidateQ, relSLAMPoseAngle, sigmaRot);
-    
+
     Eigen::Rotation2Df CandidateR(CandidateQ);
-    
+
     for(int i = 0; i < gridSizeX; i++) {
       float CandidateX;
       Eigen::Vector2f CandidateP;
@@ -316,7 +334,7 @@ std::tuple<Eigen::Vector2f, float> SLAM::GetMostLikelyPose(const Eigen::Vector2f
     }
   }
   std::cout << endl;
-  std::cout << "MaxLogLikelihood of " << maxLogLikelihood << " observed in Grid of size " << 
+  std::cout << "MaxLogLikelihood of " << maxLogLikelihood << " observed in Grid of size " <<
     "(" << gridSizeX << ", " << gridSizeY << ", " << gridSizeQ << ")" << endl;
   std::cout << "GridX: (" << gridXMin << ", " <<  gridXMin + gridSizeX*FLAGS_gridDelX << ", " << FLAGS_gridDelX << "), " <<
     "GridY: (" << gridYMin << ", " <<  gridYMin + gridSizeY*FLAGS_gridDelY << ", " << FLAGS_gridDelY << "), " <<
@@ -340,9 +358,9 @@ std::tuple<Eigen::Vector2f, float> SLAM::DeterministicMotionModel(const Eigen::V
   Eigen::Vector2f loc = prevLoc + rotBase.toRotationMatrix()*deltaLoc; // Location in Map frame.
 
   float deltaAngle = odomAngle - prevOdomAngle; // Change in angle as measured by Odometry.
-  
+
   // Accounting for non-linear scale of angles
-  deltaAngle = (fabs(fabs(deltaAngle) - 2*M_PI) < fabs(deltaAngle)) ? 
+  deltaAngle = (fabs(fabs(deltaAngle) - 2*M_PI) < fabs(deltaAngle)) ?
                 signbit(deltaAngle)*(fabs(deltaAngle) -2*M_PI) : deltaAngle;
 
   float angle = prevAngle + deltaAngle; // Angle in Map frame.
@@ -357,7 +375,7 @@ void SLAM::ObserveOdometry(const Vector2f& odom_loc, const float odom_angle) {
     odom_initialized_ = true;
     return;
   }
-  // Keep track of odometry to estimate how far the robot has moved between 
+  // Keep track of odometry to estimate how far the robot has moved between
   // poses.
 
   // Updating the current robot pose using odometry.
@@ -373,8 +391,8 @@ void SLAM::ObserveOdometry(const Vector2f& odom_loc, const float odom_angle) {
 
 Vector2f SLAM::TransformAndEstimatePointCloud(float x, float y, float theta, Vector2f pt){
   Eigen::Matrix3f T;
-  T << cos(theta), -sin(theta), x, 
-       sin(theta), cos(theta), y, 
+  T << cos(theta), -sin(theta), x,
+       sin(theta), cos(theta), y,
        0, 0, 1;
   Eigen::Vector3f pt3(pt[0], pt[1], 1);
   pt3 = T*pt3;
