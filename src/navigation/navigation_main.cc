@@ -162,10 +162,13 @@ int main(int argc, char** argv) {
       n.subscribe("/move_base_simple/goal", 1, &GoToCallback); 
 
   RateLoop loop(20.0);
+  // double current_time;
   while (run_ && ros::ok()) {
+    // current_time = GetMonotonicTime();
     ros::spinOnce();
     navigation_->Run();
     loop.Sleep();
+    // std::cout << GetMonotonicTime() - current_time << std::endl;
   }
   delete navigation_;
   return 0;

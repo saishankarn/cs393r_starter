@@ -116,7 +116,8 @@ class Navigation {
   float del_t = 0.05;
   const static int act_lat = 3;
   const static int sens_lat = 1;
-  const static int system_lat = act_lat + sens_lat;
+  const static int net_lat =  5;
+  const static int system_lat = sens_lat + act_lat;
   float vel_profile[system_lat] = {0};
   float vel_sum = 0;
 

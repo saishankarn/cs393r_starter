@@ -117,15 +117,14 @@ std::tuple<float, float, float> Navigation::GetPathScoringParams(float curvature
     float smallest_angular_distance = 17*M_PI/18; // TODO : Something better to avoid full circular motions
     //float alpha_min = 17*M_PI/18;
 
-    // To compensate for the latency
-    // To compensate for the sensing latency
-    float rcs_theta_future = (vel_profile[0] * del_t) / radius_of_turning_nominal;
-    float rcs_x_future = radius_of_turning_nominal * sin(rcs_theta_future);
-    float rcs_y_future = radius_of_turning_nominal * (1 - cos(rcs_theta_future));
+    // Latency compensation grouped together and pushed to later
+    // float rcs_theta_future = (vel_profile[0] * del_t) / radius_of_turning_nominal;
+    // float rcs_x_future = radius_of_turning_nominal * sin(rcs_theta_future);
+    // float rcs_y_future = radius_of_turning_nominal * (1 - cos(rcs_theta_future));
     
-    //float rcs_theta_future = 0.0;
-    //float rcs_x_future = 0.0;
-    //float rcs_y_future = 0.0;
+    float rcs_theta_future = 0.0;
+    float rcs_x_future = 0.0;
+    float rcs_y_future = 0.0;
 
     // Finding the free path length.
     for (unsigned int i = 0; i < point_cloud_.size(); i++) {
@@ -196,14 +195,16 @@ std::tuple<float, float, float> Navigation::GetPathScoringParams(float curvature
   
   // Case-2: Moving in a straight line
   else { 
-    // TODO : Complete this code
+    // TODO: need to include safety margin
     freePathLength = 20.0;
     clearance = 10.0;
 
     float sweptBound = width / 2 + safety_margin;
 
+    // Compensating for the sensor latency
     float rcs_theta_future = 0;
-    float rcs_x_future = vel_profile[0] * del_t;
+    float rcs_x_future = 0;
+    // float rcs_x_future = vel_profile[0] * del_t;
     float rcs_y_future = 0;
 
     for (unsigned int i = 0; i < point_cloud_.size(); i++) {
@@ -212,17 +213,22 @@ std::tuple<float, float, float> Navigation::GetPathScoringParams(float curvature
 
       if (point_candidate.x() > 0){
         if (fabs(point_candidate.y()) < sweptBound){
-        float pathLength = point_candidate.x();
-        freePathLength = std::min(pathLength, freePathLength);
+          float pathLength = point_candidate.x();
+          if (pathLength < freePathLength) {
+            freePathLength = pathLength;
+            collision_point = point_cloud_[i];
+          }
         }
         else{ 
         clearance = std::min(clearance, fabs(point_candidate.y()) - sweptBound);
         }
       }
-      distanceToGoal = localGoal - freePathLength;
     }
+    // std::cout << freePathLength << "\n";
+    // Including the safety margin in the free path length
+    freePathLength = freePathLength - (0.5*wheel_base + 0.5*length + safety_margin) ;
+    distanceToGoal = std::max(0.0f, localGoal - freePathLength);
   }
-
   return std::make_tuple(freePathLength, distanceToGoal, clearance);
 }
 
@@ -237,19 +243,18 @@ float Navigation::OneDTimeOptimalControl(float v0, float distance_remaining){
     float del_s1 = v1*del_t + 0.5*v1*v1/max_dec;
     float del_s2 = 0.5*v0*v0/max_dec;
     if (v1 <= max_vel && del_s1 < distance_remaining) {
+      // std::cout << "Acceleration phase" << "\n";
       return v1;
-      //std::cout << "Acceleration phase" << "\n";
     }
     else if (v0 <= max_vel && del_s2 < distance_remaining) {
+      // std::cout << "Cruise phase" << "\n";
       return v0;
-      //std::cout << "Cruise phase" << "\n";
     }
     else {
       v1 = v0 - max_dec*del_t;
       v1 = std::max(v1, (float )0);
+      // std::cout << "Deceleration phase" << "\n";
       return v1;
-      // return v1;
-      //std::cout << "Deceleration phase" << "\n";
     }
   }
 }
@@ -277,6 +282,7 @@ void Navigation::UpdateOdometry(const Vector2f& loc,
                                 float ang_vel) {
   robot_omega_ = ang_vel;
   robot_vel_ = vel;
+  // std::cout << "Robot Velocity: " << vel << "\n"; 
 
   if (!odom_initialized_) {
     odom_start_angle_ = angle;
@@ -325,7 +331,8 @@ void Navigation::Run() {
   float relAngle;
   std::tie(relPos, relAngle) = getRelativePose(odom_start_loc_, odom_start_angle_, odom_loc_, odom_angle_);
   
-  // Adjust the distance traveled by taking into account the latency compensation.
+  // Adjust the distance traveled by taking into account the actuation latency compensation.
+  // System Latency = Sensor Latency + Actuation Latency 
   vel_sum = 0;
   for(int vel_idx = 0; vel_idx < system_lat; vel_idx++){
     vel_sum += vel_profile[vel_idx];
@@ -335,37 +342,53 @@ void Navigation::Run() {
   Eigen::Vector2f collision_point; // to visualize the first point of collision with an obstacle given a path
   Eigen::Vector2f collision_point_candidate;
   float distance_remaining = 0.0; // setting a minimum value of zero
-  float best_score = -kInf;
-   
-  for (float curvature_candidate = 1.05; curvature_candidate >= -1.05; curvature_candidate = curvature_candidate - 0.1) {
-    float freePathLengthCandidate;
-    float distanceToGoalCandidate;
-    float clearanceCandidate;
-    std::tie(freePathLengthCandidate, distanceToGoalCandidate, clearanceCandidate) = GetPathScoringParams(curvature_candidate, collision_point_candidate);
-    float score = freePathLengthCandidate + dtgWeight * distanceToGoalCandidate + clWeight * clearanceCandidate;
-    
-    // Visualizing candidate arcs and correspoing distances
-    visualization::DrawPath(curvature_candidate, freePathLengthCandidate, 0xFFA500, local_viz_msg_);
-    // float radius_of_turning_min = fabs(1/curvature_candidate) - (0.5*(width - track_width) + 0.5*track_width + safety_margin);
-    // visualization::DrawPathOption(curvature_candidate, radius_of_turning_min*freePathLengthCandidate, 0.5*width+safety_margin, local_viz_msg_);
-    std::cout << "C: "<< curvature_candidate << ", FPL: " << freePathLengthCandidate << ", DTG: " 
-              << dtgWeight*distanceToGoalCandidate << ", Cl: " << clWeight*clearanceCandidate << ", S: " <<score << "\n";
-
-    // Choosing the arc/line with the best score
-    if (score > best_score) {
-      best_score = score;
-      distance_remaining = freePathLengthCandidate;
-      collision_point = collision_point_candidate;
-      drive_msg_.curvature = curvature_candidate; // choosing curvature with best score
-    }
-  }
   
-  std::cout << "Chosen curvature: "<< drive_msg_.curvature << " Chosen distance remaining: " << distance_remaining << "\n";
+  // float best_score = -kInf;
+  // for (float curvature_candidate = 1.05; curvature_candidate >= -1.05; curvature_candidate = curvature_candidate - 0.1) {
+  //   float freePathLengthCandidate;
+  //   float distanceToGoalCandidate;
+  //   float clearanceCandidate;
+  //   std::tie(freePathLengthCandidate, distanceToGoalCandidate, clearanceCandidate) = GetPathScoringParams(curvature_candidate, collision_point_candidate);
+  //   float score = freePathLengthCandidate + dtgWeight * distanceToGoalCandidate + clWeight * clearanceCandidate;
+    
+  //   // Visualizing candidate arcs and correspoing distances
+  //   visualization::DrawPath(curvature_candidate, freePathLengthCandidate, 0xFFA500, local_viz_msg_);
+  //   // float radius_of_turning_min = fabs(1/curvature_candidate) - (0.5*(width - track_width) + 0.5*track_width + safety_margin);
+  //   // visualization::DrawPathOption(curvature_candidate, radius_of_turning_min*freePathLengthCandidate, 0.5*width+safety_margin, local_viz_msg_);
+  //   // std::cout << "C: "<< curvature_candidate << ", FPL: " << freePathLengthCandidate << ", DTG: " 
+  //             // << dtgWeight*distanceToGoalCandidate << ", Cl: " << clWeight*clearanceCandidate << ", S: " <<score << "\n";
+
+  //   // Choosing the arc/line with the best score
+  //   if (score > best_score) {
+  //     best_score = score;
+  //     distance_remaining = freePathLengthCandidate;
+  //     collision_point = collision_point_candidate;
+  //     drive_msg_.curvature = curvature_candidate; // choosing curvature with best score
+  //   }
+  // }
+  
+  // std::cout << "Chosen curvature: "<< drive_msg_.curvature << " Chosen distance remaining: " << distance_remaining << "\n";
+
+  // STRAIGHT LINE MOTION ONLY
+  float curvature_candidate = 0.0;
+  float freePathLengthCandidate;
+  float distanceToGoalCandidate;
+  float clearanceCandidate;
+  std::tie(freePathLengthCandidate, distanceToGoalCandidate, clearanceCandidate) = GetPathScoringParams(curvature_candidate, collision_point_candidate);
+  distance_remaining = freePathLengthCandidate;
+  collision_point = collision_point_candidate;
+  drive_msg_.curvature = curvature_candidate;
 
   // Time optimal control.
   float v0 = vel_profile[system_lat - 1];
+  // v0 = robot_vel_[0];
+  // std::cout << "Distance remaining: " << distance_remaining << "\n";
   distance_remaining = distance_remaining - (vel_sum) * del_t;
   drive_msg_.velocity = OneDTimeOptimalControl(v0, distance_remaining);
+  // drive_msg_.velocity = 0.0;
+  // std::cout << "Distance remaining: " << distance_remaining << "\n";
+  // Shielding here
+  // std::cout << "Velocity command: " << drive_msg_.velocity << "\n";
   UpdateVelocityProfile(drive_msg_.velocity);
   
   // Create visualizations.
