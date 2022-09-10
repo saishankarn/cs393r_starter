@@ -20,7 +20,7 @@
 //========================================================================
  
 #include <vector>
-
+#include <fstream>
 #include "eigen3/Eigen/Dense"
 #include <math.h>
 
@@ -118,7 +118,7 @@ class Navigation {
   const static int sens_lat = 1;
   const static int net_lat =  5;
   const static int system_lat = sens_lat + act_lat;
-  float vel_profile[system_lat] = {0};
+  std::array<float, system_lat> vel_profile = {0};
   float vel_sum = 0;
 
   // navigation variables
@@ -129,6 +129,12 @@ class Navigation {
   float safety_margin = 0.05; 
 
   Eigen::Vector2f center_of_curve;
+
+  // Shield
+  std::map<std::string, float> shield_;
+  float pmax_threshold = 0.95;
+  void readShieldCSV();
+  float getShieldedAction(float state, float action);
 
 };
 

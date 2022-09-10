@@ -76,6 +76,76 @@ Navigation::Navigation(const string& map_file, ros::NodeHandle* n) :
   global_viz_msg_ = visualization::NewVisualizationMessage(
       "map", "navigation_global");
   InitRosHeader("base_link", &drive_msg_.header);
+  readShieldCSV();
+}
+
+void Navigation::readShieldCSV() {
+  std::ifstream fin("data/own_state_action_values_4_td_csv.csv");
+  if (!fin) {
+    std::cout << "Error, could not open file" << std::endl;
+  }
+  std::string state_string;
+  std::string pmax;
+
+  // Reading data as string
+  std::string line;
+  while (std::getline(fin, line)) {
+    std::stringstream strstrm(line);
+    std::getline(strstrm, state_string, ',');
+    std::getline(strstrm, pmax);
+    shield_[state_string] = std::stof(pmax);
+  }
+  fin.close();
+}
+
+float Navigation::getShieldedAction(float state, float action){
+  // state: distance remaining, action: velocity command
+  
+  // Abstracting continuous state to discrete value
+  // 0.0 - 0.2 -> 0
+  // 0.2 - 0.4 -> 1
+  // ...
+  // 9.8 - 10 -> 49
+  // 10  - 20 -> 50
+  int abstract_state = static_cast<int>(std::lround(state/(0.2f)));
+  abstract_state < 0 ? abstract_state = 0 : (abstract_state > 50 ? abstract_state = 50 : 0);   
+  std::string key = std::to_string(abstract_state);
+  
+  // Abstracting continuous actions to discrete value
+  // -1.0 - -0.8 -> 0
+  // ...
+  // -0.2 -  0.0 -> 4
+  //  0.0 -  0.2 -> 5
+  //  0.8 -  1.0 -> 9 
+  for(unsigned int i = 0; i < vel_profile.size(); i++) {
+    int abstract_action = static_cast<int>(std::lround(vel_profile[i]/(0.2f))) + 5;
+    abstract_action < 0 ? abstract_action = 0 : (abstract_action > 9 ? abstract_action = 9 : 0);
+    key = key + '-' + std::to_string(abstract_action);       
+  }
+
+  int abstract_action = static_cast<int>(std::lround(action/(0.2f))) + 5;
+  abstract_action < 0 ? abstract_action = 0 : (abstract_action > 9 ? abstract_action = 9 : 0);
+  std::string key_temp = key + '-' + std::to_string(abstract_action);
+  // std::cout << key_temp << "\n";
+  // std::cout << shield_[key_temp] << "\n";
+  if(shield_[key_temp] > pmax_threshold) {
+    return action;
+  }
+  else {
+    float pmax = -1.0;
+    int pmax_i = 5;
+    for(int i = 5; i < 10 ; i++) {
+      key_temp = key + '-' + std::to_string(i);
+      // std::cout << key_temp << "\n";
+      std::cout << key_temp << ": " << shield_[key_temp] << "\n";
+      if(shield_[key_temp] > pmax) {
+        pmax = shield_[key_temp];
+        pmax_i = i;
+      }
+    }
+    
+    return std::max(0.0, std::max(5, pmax_i)*0.2 - 1.0);
+  }
 }
 
 std::tuple<Eigen::Vector2f, float> Navigation::getRelativePose(
@@ -379,18 +449,23 @@ void Navigation::Run() {
   collision_point = collision_point_candidate;
   drive_msg_.curvature = curvature_candidate;
 
-  // Time optimal control.
+  // NAIVE LATENCY COMPENSATION
+  // Works well for static obstacles in the environment
   float v0 = vel_profile[system_lat - 1];
-  // v0 = robot_vel_[0];
-  // std::cout << "Distance remaining: " << distance_remaining << "\n";
-  distance_remaining = distance_remaining - (vel_sum) * del_t;
-  drive_msg_.velocity = OneDTimeOptimalControl(v0, distance_remaining);
-  // drive_msg_.velocity = 0.0;
-  // std::cout << "Distance remaining: " << distance_remaining << "\n";
-  // Shielding here
-  // std::cout << "Velocity command: " << drive_msg_.velocity << "\n";
-  UpdateVelocityProfile(drive_msg_.velocity);
+  float dis_rem_delay_compensated = distance_remaining - (vel_sum) * del_t;
+
+  // Time optimal control.
+  float opt_action = OneDTimeOptimalControl(v0, dis_rem_delay_compensated);
+  drive_msg_.velocity = opt_action;
   
+  // Shielding here
+  float shielded_action = getShieldedAction(distance_remaining, opt_action);
+  std::cout << "OA: " << opt_action << ", SA: " << shielded_action << "\n";
+  drive_msg_.velocity = shielded_action;
+  
+  // Update velocity profile
+  UpdateVelocityProfile(drive_msg_.velocity);
+
   // Create visualizations.
   local_viz_msg_.header.stamp = ros::Time::now();
   global_viz_msg_.header.stamp = ros::Time::now();
