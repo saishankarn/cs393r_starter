@@ -33,7 +33,6 @@
 #include "shared/math/math_util.h"
 #include "shared/math/statistics.h"
 #include "shared/util/timer.h"
-#include "visualization/CImg.h"
 
 #include "slam.h"
 
@@ -54,8 +53,8 @@ using std::string;
 using std::swap;
 using std::vector;
 using vector_map::VectorMap;
-using cimg_library::CImg;
-using cimg_library::CImgDisplay;
+//using cimg_library::CImg;
+//using cimg_library::CImgDisplay;
 
 DEFINE_double(map_resolution, 0.02, "Rasterized cost map resolution. Width of cell in meters");
 DEFINE_double(sensor_std, 0.01, "standard deviation of sensor");

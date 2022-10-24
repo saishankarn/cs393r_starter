@@ -28,7 +28,7 @@
 #define NAVIGATION_H
 
 namespace ros {
-  class NodeHandle;
+  class NodeHandle; 
 }  // namespace ros
 
 namespace navigation {
