@@ -222,9 +222,30 @@ std::tuple<float, float, float> Serverside::GetPathScoringParams(float curvature
 void Serverside::ObservePointCloud(const vector<Vector2f>& cloud,
                                    ros::Time time) {
   //std::cout << "time difference : " << time - point_cloud_time_stamp_ << "\n";
-  point_cloud_ = cloud; 
-  point_cloud_time_stamp_ = time;   
+  //point_cloud_ = cloud; 
+  //point_cloud_time_stamp_ = time;   
 
+  point_cloud_stack_.push_back(point_cloud_);
+  point_cloud_time_stamp_stack_.push_back(time);
+  std::cout << point_cloud_time_stamp_ << "\n";
+  //std::cout << "size of point cloud stack is " << size(point_cloud_stack_) << "\n";
+
+}
+
+void Serverside::GetAptPointCloudAndStamp() {
+
+  std::cout << "size of point cloud stack is " << size(point_cloud_stack_) << "\n";
+
+  if (size(point_cloud_stack_) > 0) {
+    //std::cout << "here" << "\n";
+    point_cloud_ = point_cloud_stack_[0];
+    point_cloud_time_stamp_ = point_cloud_time_stamp_stack_[0];
+
+    std::cout << "value of the required point cloud's time stamp is " << point_cloud_time_stamp_ << "\n";
+  }
+
+  point_cloud_stack_.clear();
+  point_cloud_time_stamp_stack_.clear();
 
 }
 
@@ -243,6 +264,8 @@ Vector2f Serverside::TransformAndEstimatePointCloud(float x, float y, float thet
 
 void Serverside::Run() {
   // This function gets called 20 times a second to form the control loop.
+  // get the required point cloud from the point cloud stack
+  GetAptPointCloudAndStamp();
   
   // Obstacle avoidance.
   Eigen::Vector2f collision_point; // to visualize the first point of collision with an obstacle given a path
@@ -282,7 +305,7 @@ void Serverside::Run() {
   float clearanceCandidate;
   //std::cout << "right before the GetPathScoringParams" << "\n";
   //std::cout << "size of point cloud" << size(point_cloud_) << "\n";
-  std::tie(freePathLengthCandidate, distanceToGoalCandidate, clearanceCandidate) = Serverside::GetPathScoringParams(curvature_candidate, collision_point_candidate);
+  std::tie(freePathLengthCandidate, distanceToGoalCandidate, clearanceCandidate) = GetPathScoringParams(curvature_candidate, collision_point_candidate);
   //std::cout << "the distance remaning" << freePathLengthCandidate << "\n";
   distance_remaining = freePathLengthCandidate;
   collision_point = collision_point_candidate;

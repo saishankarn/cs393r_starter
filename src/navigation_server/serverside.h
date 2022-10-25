@@ -52,6 +52,8 @@ class Serverside {
   void ObservePointCloud(const std::vector<Eigen::Vector2f>& cloud,
                          ros::Time time);
 
+  void GetAptPointCloudAndStamp();
+
   // Main function called continously from main
   void Run();
 
@@ -61,8 +63,14 @@ class Serverside {
 
  private:
 
-  // Latest observed point cloud.
+  // a vector of vector of points - this will be used as a buffer to store the scan values from multiple laser callbacks
+  std::vector<std::vector<Eigen::Vector2f>> point_cloud_stack_;
+  // a vector of ros::Time time_stamps - this will be used to store the ros time stamps corresponding to the muliple laser callbacks
+  std::vector<ros::Time> point_cloud_time_stamp_stack_;
+
+  // required point cloud.
   std::vector<Eigen::Vector2f> point_cloud_;
+  //time stamp corresponding to the required point cloud
   ros::Time point_cloud_time_stamp_;
 
   // kinematic variables 

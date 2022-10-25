@@ -61,7 +61,6 @@ bool run_ = true;
 sensor_msgs::LaserScan last_laser_msg_;
 Serverside* serverside_ = nullptr; //pointer to the object belonging to the Serverside class
 
-vector<Vector2f> point_cloud_; //for 
 
 void LaserCallback(const sensor_msgs::LaserScan& msg) {
   if (FLAGS_v > 0) {
@@ -69,10 +68,10 @@ void LaserCallback(const sensor_msgs::LaserScan& msg) {
            msg.header.stamp.toSec(),
            GetWallTime() - msg.header.stamp.toSec());
   }
-  std::cout << "within callback" << "\n";
+  //std::cout << "within callback" << "\n";
   // Location of the laser on the robot. Assumes the laser is forward-facing.
   const Vector2f kLaserLoc(0.2, 0);
-  cout << "sensor reading recorded time : " << msg.header.stamp << "\n";
+  //cout << "sensor reading recorded time : " << msg.header.stamp << "\n";
   /*
   cout << "----------------------------" << "\n";
   cout << "printing the laser message" << "\n";
@@ -127,6 +126,7 @@ int main(int argc, char** argv) {
     std::cout << "-----------------" << "\n";
     std::cout << "within while loop" << "\n";
     ros::spinOnce();
+    
     serverside_->Run();
     loop.Sleep();
   }
