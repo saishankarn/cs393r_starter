@@ -6,7 +6,7 @@ MESSAGE(STATUS "Using compiler: ${CMAKE_CXX_COMPILER}")
 MESSAGE(STATUS "Build Type: ${CMAKE_BUILD_TYPE}")
 MESSAGE(STATUS "Arch: ${CMAKE_SYSTEM_PROCESSOR}")
 
-SET(CMAKE_CXX_FLAGS "-std=c++11 -Wall -Werror")
+SET(CMAKE_CXX_FLAGS "-std=c++17 -Wall -Werror")
 
 IF(${CMAKE_BUILD_TYPE} MATCHES "Release")
   MESSAGE(STATUS "Additional Flags for Release mode")
@@ -53,6 +53,11 @@ ROSBUILD_ADD_EXECUTABLE(navigation
                         src/navigation/navigation_main.cc
                         src/navigation/navigation.cc)
 TARGET_LINK_LIBRARIES(navigation shared_library ${libs})
+
+ROSBUILD_ADD_EXECUTABLE(serverside
+                        src/navigation_server/serverside_main.cc
+                        src/navigation_server/serverside.cc)
+TARGET_LINK_LIBRARIES(serverside shared_library ${libs})
 
 ADD_EXECUTABLE(eigen_tutorial
                src/eigen_tutorial.cc)

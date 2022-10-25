@@ -23,7 +23,7 @@
 #include <stdlib.h>
 #include <math.h>
 #include <stdio.h>
-#include <string.h>
+#include <string.h> 
 #include <inttypes.h>
 #include <vector>
 
@@ -33,7 +33,6 @@
 #include "eigen3/Eigen/Geometry"
 #include "amrl_msgs/Localization2DMsg.h"
 #include "gflags/gflags.h"
-
 #include "geometry_msgs/Pose2D.h"
 #include "geometry_msgs/PoseArray.h"
 #include "geometry_msgs/PoseStamped.h"
@@ -87,7 +86,8 @@ void LaserCallback(const sensor_msgs::LaserScan& msg) {
   // const Vector2f kLaserLoc(0.0, 0.0);
 
   vector<Vector2f> point_cloud_;
-  /*
+  
+  cout << "--------------------------" << "\n";
   cout << "printing the laser message" << "\n";
   cout << "minimum angle :   " << msg.angle_min << "\n";
   cout << "maximum angle :   " << msg.angle_max << "\n";
@@ -97,9 +97,9 @@ void LaserCallback(const sensor_msgs::LaserScan& msg) {
   cout << "minimum range :   " << msg.range_min << "\n";
   cout << "maximum range:   " << msg.range_max << "\n";
   cout << "num laser readings : " << msg.ranges.size() << "\n";
-  cout << "expected num laser readings : " << (msg.angle_max - msg.angle_min) / msg.angle_increment << "\n";
+  cout << "message header : " << msg.header << "\n";
   // TODO Convert the LaserScan to a point cloud
-  */
+  
   for(int ranges_idx = 0; ranges_idx < int(msg.ranges.size()); ranges_idx++){
     Vector2f v(0, 0);
     v[0] = msg.ranges[ranges_idx] * cos(msg.angle_min + ranges_idx * msg.angle_increment);
@@ -166,6 +166,7 @@ int main(int argc, char** argv) {
   // RateLoop loop(10.0);
   while (run_ && ros::ok()) {
     // double current_time = GetMonotonicTime();
+    cout << "hi" << '\n';
     ros::spinOnce();
     navigation_->Run();
     loop.Sleep();

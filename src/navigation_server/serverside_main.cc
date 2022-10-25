@@ -7,15 +7,15 @@
 //  but WITHOUT ANY WARRANTY; without even the implied warranty of
 //  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 //  GNU Lesser General Public License for more details.
-//
+// 
 //  You should have received a copy of the GNU Lesser General Public License
 //  Version 3 in the file COPYING that came with this distribution.
 //  If not, see <http://www.gnu.org/licenses/>.
 //========================================================================
 /*!
-\file    navigation_main.cc
+\file    serverside_main.cc
 \brief   Main entry point for reference Navigation implementation
-\author  Joydeep Biswas, (C) 2019
+\author  Joydeep Biswas, (C) 2019 
 */
 //========================================================================
 
@@ -23,7 +23,7 @@
 #include <stdlib.h>
 #include <math.h>
 #include <stdio.h>
-#include <string.h>
+#include <string.h> 
 #include <inttypes.h>
 #include <vector>
 
@@ -31,28 +31,18 @@
 #include "gflags/gflags.h"
 #include "eigen3/Eigen/Dense"
 #include "eigen3/Eigen/Geometry"
-#include "amrl_msgs/Localization2DMsg.h"
 #include "gflags/gflags.h"
-
-#include "geometry_msgs/Pose2D.h"
-#include "geometry_msgs/PoseArray.h"
-#include "geometry_msgs/PoseStamped.h"
-#include "geometry_msgs/PoseWithCovarianceStamped.h"
 #include "sensor_msgs/LaserScan.h"
-#include "visualization_msgs/Marker.h"
-#include "visualization_msgs/MarkerArray.h"
-#include "nav_msgs/Odometry.h"
 #include "ros/ros.h"
 #include "shared/math/math_util.h"
 #include "shared/util/timer.h"
 #include "shared/ros/ros_helpers.h"
 
-#include "navigation.h"
+#include "serverside.h"
 
-using amrl_msgs::Localization2DMsg;
 using math_util::DegToRad;
 using math_util::RadToDeg;
-using navigation::Navigation;
+using serverside::Serverside;
 using ros::Time;
 using ros_helpers::Eigen3DToRosPoint;
 using ros_helpers::Eigen2DToRosPoint;
@@ -65,16 +55,13 @@ using namespace std;
 
 // Create command line arguments
 DEFINE_string(laser_topic, "scan", "Name of ROS topic for LIDAR data");
-DEFINE_string(odom_topic, "odom", "Name of ROS topic for odometry data");
-DEFINE_string(loc_topic, "localization", "Name of ROS topic for localization");
-DEFINE_string(init_topic,
-              "initialpose",
-              "Name of ROS topic for initialization");
 DEFINE_string(map, "maps/GDC1.txt", "Name of vector map file");
 
 bool run_ = true;
 sensor_msgs::LaserScan last_laser_msg_;
-Navigation* navigation_ = nullptr;
+Serverside* serverside_ = nullptr; //pointer to the object belonging to the Serverside class
+
+vector<Vector2f> point_cloud_; //for 
 
 void LaserCallback(const sensor_msgs::LaserScan& msg) {
   if (FLAGS_v > 0) {
@@ -82,12 +69,12 @@ void LaserCallback(const sensor_msgs::LaserScan& msg) {
            msg.header.stamp.toSec(),
            GetWallTime() - msg.header.stamp.toSec());
   }
+  std::cout << "within callback" << "\n";
   // Location of the laser on the robot. Assumes the laser is forward-facing.
   const Vector2f kLaserLoc(0.2, 0);
-  // const Vector2f kLaserLoc(0.0, 0.0);
-
-  vector<Vector2f> point_cloud_;
+  cout << "sensor reading recorded time : " << msg.header.stamp << "\n";
   /*
+  cout << "----------------------------" << "\n";
   cout << "printing the laser message" << "\n";
   cout << "minimum angle :   " << msg.angle_min << "\n";
   cout << "maximum angle :   " << msg.angle_max << "\n";
@@ -98,35 +85,20 @@ void LaserCallback(const sensor_msgs::LaserScan& msg) {
   cout << "maximum range:   " << msg.range_max << "\n";
   cout << "num laser readings : " << msg.ranges.size() << "\n";
   cout << "expected num laser readings : " << (msg.angle_max - msg.angle_min) / msg.angle_increment << "\n";
-  // TODO Convert the LaserScan to a point cloud
+  cout << "message header : " << msg.header << "\n";
+  cout << "sensor reading recorded time : " << msg.header.stamp << "\n";
+  cout << "calculated sensor reading recorded time : " << h_time << "\n";
   */
+  vector<Vector2f> point_cloud_;
   for(int ranges_idx = 0; ranges_idx < int(msg.ranges.size()); ranges_idx++){
     Vector2f v(0, 0);
     v[0] = msg.ranges[ranges_idx] * cos(msg.angle_min + ranges_idx * msg.angle_increment);
     v[1] = msg.ranges[ranges_idx] * sin(msg.angle_min + ranges_idx * msg.angle_increment);
     point_cloud_.push_back(v + kLaserLoc);
   }
-  navigation_->ObservePointCloud(point_cloud_, msg.header.stamp.toSec());
+  
+  serverside_->ObservePointCloud(point_cloud_, msg.header.stamp);
   last_laser_msg_ = msg;
-}
-
-void OdometryCallback(const nav_msgs::Odometry& msg) {
-  if (FLAGS_v > 0) {
-    printf("Odometry t=%f\n", msg.header.stamp.toSec());
-  }
-  navigation_->UpdateOdometry(
-      Vector2f(msg.pose.pose.position.x, msg.pose.pose.position.y),
-      2.0 * atan2(msg.pose.pose.orientation.z, msg.pose.pose.orientation.w),
-      Vector2f(msg.twist.twist.linear.x, msg.twist.twist.linear.y),
-      msg.twist.twist.angular.z);
-}
-
-void GoToCallback(const geometry_msgs::PoseStamped& msg) {
-  const Vector2f loc(msg.pose.position.x, msg.pose.position.y);
-  const float angle =
-      2.0 * atan2(msg.pose.orientation.z, msg.pose.orientation.w);
-  printf("Goal: (%f,%f) %f\u00b0\n", loc.x(), loc.y(), angle);
-  navigation_->SetNavGoal(loc, angle);
 }
 
 void SignalHandler(int) {
@@ -138,39 +110,27 @@ void SignalHandler(int) {
   run_ = false;
 }
 
-void LocalizationCallback(const amrl_msgs::Localization2DMsg msg) {
-  if (FLAGS_v > 0) {
-    printf("Localization t=%f\n", GetWallTime());
-  }
-  navigation_->UpdateLocation(Vector2f(msg.pose.x, msg.pose.y), msg.pose.theta);
-}
-
 int main(int argc, char** argv) {
   google::ParseCommandLineFlags(&argc, &argv, false);
   signal(SIGINT, SignalHandler); 
   // Initialize ROS.
-  ros::init(argc, argv, "navigation", ros::init_options::NoSigintHandler);
+  ros::init(argc, argv, "navigation_server", ros::init_options::NoSigintHandler);
   ros::NodeHandle n;
-  navigation_ = new Navigation(FLAGS_map, &n);
+  serverside_ = new Serverside(FLAGS_map, &n);
 
-  ros::Subscriber velocity_sub =
-      n.subscribe(FLAGS_odom_topic, 1, &OdometryCallback);
-  ros::Subscriber localization_sub =
-      n.subscribe(FLAGS_loc_topic, 1, &LocalizationCallback);
   ros::Subscriber laser_sub =
-      n.subscribe(FLAGS_laser_topic, 1, &LaserCallback);
-  ros::Subscriber goto_sub =
-      n.subscribe("/move_base_simple/goal", 1, &GoToCallback); 
+      n.subscribe(FLAGS_laser_topic, 20, &LaserCallback);
 
   RateLoop loop(20.0);
-  // RateLoop loop(10.0);
+
   while (run_ && ros::ok()) {
-    // double current_time = GetMonotonicTime();
+    std::cout << "-----------------" << "\n";
+    std::cout << "within while loop" << "\n";
     ros::spinOnce();
-    navigation_->Run();
+    serverside_->Run();
     loop.Sleep();
-    // std::cout << GetMonotonicTime() - current_time << std::endl;
   }
-  delete navigation_;
+
+  delete serverside_;
   return 0;
 }
