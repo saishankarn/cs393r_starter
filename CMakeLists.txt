@@ -59,6 +59,12 @@ ROSBUILD_ADD_EXECUTABLE(serverside
                         src/navigation_server/serverside.cc)
 TARGET_LINK_LIBRARIES(serverside shared_library ${libs})
 
+ROSBUILD_ADD_EXECUTABLE(clientside
+                        src/navigation_client/navigation_client_main.cc
+                        src/navigation_client/navigation_client.cc)
+TARGET_LINK_LIBRARIES(clientside shared_library ${libs})
+
+
 ADD_EXECUTABLE(eigen_tutorial
                src/eigen_tutorial.cc)
 

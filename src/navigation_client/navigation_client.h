@@ -27,7 +27,7 @@
 #ifndef NAVIGATION_CLIENT_H
 #define NAVIGATION_CLIENT_H
 
-namespace ros {
+namespace ros { 
   class NodeHandle;
 }  // namespace ros
 
@@ -51,15 +51,14 @@ class Navigation_client {
   // Used in callback from localization to update position.
   void UpdateLocation(const Eigen::Vector2f& loc, float angle);
 
+  // Used in callback to assign the path params corresponding to a delayed laser scan
+  void GetPathParams(float distance_remaining, float curvature, ros::Time scan_time_stamp);
+
   // Used in callback for odometry messages to update based on odometry.
   void UpdateOdometry(const Eigen::Vector2f& loc,
                       float angle,
                       const Eigen::Vector2f& vel,
                       float ang_vel);
-
-  // Updates based on an observed laser scan
-  void ObservePointCloud(const std::vector<Eigen::Vector2f>& cloud,
-                         double time);
 
   // Main function called continously from main
   void Run();
@@ -72,8 +71,6 @@ class Navigation_client {
     const Eigen::Vector2f endPos, float endAngle) const; 
 
   std::tuple<float, float, float> GetPathScoringParams(float curvature_of_turning, Eigen::Vector2f& closest_point);
-
-  Eigen::Vector2f TransformAndEstimatePointCloud(float x, float y, float theta, Eigen::Vector2f pt);
 
   void UpdateVelocityProfile(float last_vel);
 
@@ -101,15 +98,17 @@ class Navigation_client {
   Eigen::Vector2f odom_start_loc_;
   // Odometry-reported robot starting angle.
   float odom_start_angle_;
-  // Latest observed point cloud.
-  std::vector<Eigen::Vector2f> point_cloud_;
-
   // Whether navigation is complete.
   bool nav_complete_;
   // Navigation goal location.
   Eigen::Vector2f nav_goal_loc_;
   // Navigation goal angle.
   float nav_goal_angle_;
+
+  // Variables updated by subscribing to server_path_params topic
+  float distance_remaining_;
+  float chosen_curvature_;
+  ros::Time scan_time_stamp_;
 
   // kinematic variables 
   float max_acc = 4.0;

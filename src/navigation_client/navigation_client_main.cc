@@ -24,7 +24,7 @@
 #include <math.h>
 #include <stdio.h>
 #include <string.h>
-#include <inttypes.h>
+#include <inttypes.h> 
 #include <vector>
 
 #include "glog/logging.h"
@@ -36,8 +36,8 @@
 #include "geometry_msgs/Pose2D.h"
 #include "geometry_msgs/PoseArray.h"
 #include "geometry_msgs/PoseStamped.h"
+#include "geometry_msgs/PointStamped.h"
 #include "geometry_msgs/PoseWithCovarianceStamped.h"
-#include "sensor_msgs/LaserScan.h"
 #include "visualization_msgs/Marker.h"
 #include "visualization_msgs/MarkerArray.h"
 #include "nav_msgs/Odometry.h"
@@ -49,6 +49,7 @@
 #include "navigation_client.h"
 
 using amrl_msgs::Localization2DMsg;
+using geometry_msgs::PointStamped;
 using math_util::DegToRad;
 using math_util::RadToDeg;
 using navigation_client::Navigation_client;
@@ -63,18 +64,20 @@ using Eigen::Vector2f;
 using namespace std;
 
 // Create command line arguments
-DEFINE_string(laser_topic, "scan", "Name of ROS topic for LIDAR data");
+//DEFINE_string(laser_topic, "scan", "Name of ROS topic for LIDAR data");
 DEFINE_string(odom_topic, "odom", "Name of ROS topic for odometry data");
 DEFINE_string(loc_topic, "localization", "Name of ROS topic for localization");
 DEFINE_string(init_topic,
               "initialpose",
               "Name of ROS topic for initialization");
 DEFINE_string(map, "maps/GDC1.txt", "Name of vector map file");
+DEFINE_string(server_topic, "server_path_params", "Name of ROS topic for path params from the server side");
 
 bool run_ = true;
-sensor_msgs::LaserScan last_laser_msg_;
+//sensor_msgs::LaserScan last_laser_msg_;
 Navigation_client* navigation_client_ = nullptr;
 
+/*
 void LaserCallback(const sensor_msgs::LaserScan& msg) {
   if (FLAGS_v > 0) {
     printf("Laser t=%f, dt=%f\n",
@@ -93,6 +96,17 @@ void LaserCallback(const sensor_msgs::LaserScan& msg) {
   }
   navigation_client_->ObservePointCloud(point_cloud_, msg.header.stamp.toSec());
   last_laser_msg_ = msg;
+}
+*/
+
+void ServerPathParamCallback(const geometry_msgs::PointStamped& msg) {
+  if (FLAGS_v > 0) {
+    printf("ServerPathParam corresponding to timet=%f\n", msg.header.stamp.toSec());
+  }
+  float distance_remaining = msg.point.x;
+  float curvature = msg.point.y;
+  ros::Time scan_time_stamp = msg.header.stamp;
+  navigation_client_->GetPathParams(distance_remaining, curvature, scan_time_stamp);
 }
 
 void OdometryCallback(const nav_msgs::Odometry& msg) {
@@ -142,10 +156,14 @@ int main(int argc, char** argv) {
       n.subscribe(FLAGS_odom_topic, 1, &OdometryCallback);
   ros::Subscriber localization_sub =
       n.subscribe(FLAGS_loc_topic, 1, &LocalizationCallback);
+  /*
   ros::Subscriber laser_sub =
       n.subscribe(FLAGS_laser_topic, 1, &LaserCallback);
+  */
   ros::Subscriber goto_sub =
       n.subscribe("/move_base_simple/goal", 1, &GoToCallback); 
+  ros::Subscriber server_sub = 
+      n.subscribe(FLAGS_server_topic, 1, &ServerPathParamCallback);
 
   RateLoop loop(20.0);
   while (run_ && ros::ok()) {

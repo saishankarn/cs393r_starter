@@ -19,7 +19,7 @@
 */
 //========================================================================
 #include "gflags/gflags.h" 
-#include "eigen3/Eigen/Dense"
+#include "eigen3/Eigen/Dense" 
 #include "eigen3/Eigen/Geometry"
 #include "amrl_msgs/AckermannCurvatureDriveMsg.h"
 #include "amrl_msgs/Pose2Df.h"
@@ -35,6 +35,7 @@
 using Eigen::Vector2f;
 using amrl_msgs::AckermannCurvatureDriveMsg;
 using amrl_msgs::VisualizationMsg;
+using ros::Time;
 using std::string;
 using std::vector;
 using namespace math_util;
@@ -221,7 +222,7 @@ void Navigation_client::UpdateOdometry(const Vector2f& loc,
   odom_loc_ = loc;
   odom_angle_ = angle;
 }
-
+/*
 void Navigation_client::ObservePointCloud(const vector<Vector2f>& cloud,
                                    double time) {
   point_cloud_ = cloud;    
@@ -237,6 +238,13 @@ Vector2f Navigation_client::TransformAndEstimatePointCloud(float x, float y, flo
   Eigen::Vector3f pt3(pt[0], pt[1], 1);
   pt3 = T*pt3;
   return Vector2f(pt3[0], pt3[1]);
+}
+*/
+
+void Navigation_client::GetPathParams(float distance_remaining, float curvature, ros::Time scan_time_stamp) {
+  distance_remaining_ = distance_remaining;
+  chosen_curvature_ = curvature;
+  scan_time_stamp_ = scan_time_stamp;
 }
 
 std::tuple<float, float> Navigation_client::getOptimalAction(float distance_remaining) {
@@ -280,14 +288,14 @@ void Navigation_client::Run() {
   
   //Obtain optimal action
   float opt_action, dis_rem_delay_compensated; 
-  std::tie(opt_action, dis_rem_delay_compensated) = getOptimalAction(distance_remaining);
+  std::tie(opt_action, dis_rem_delay_compensated) = getOptimalAction(distance_remaining_);
 
   // Obtain shielded action
   float shielded_action = getShieldedAction(dis_rem_delay_compensated, opt_action);
   shielded_action = opt_action;
   
   // Update drive message
-  drive_msg_.curvature = chosen_curvature;
+  drive_msg_.curvature = chosen_curvature_;
   drive_msg_.velocity  = shielded_action;
   
   // Update velocity profile
@@ -298,7 +306,7 @@ void Navigation_client::Run() {
   global_viz_msg_.header.stamp = ros::Time::now();
   drive_msg_.header.stamp = ros::Time::now();
   visualization::DrawRobotMargin(length, width, wheel_base, track_width, safety_margin, local_viz_msg_);
-  visualization::DrawCross(collision_point, 0.5, 0x000000, local_viz_msg_);
+  //visualization::DrawCross(collision_point, 0.5, 0x000000, local_viz_msg_);
 
   // Publish messages.
   viz_pub_.publish(local_viz_msg_);
