@@ -26,7 +26,7 @@
 #include <string.h> 
 #include <inttypes.h>
 #include <vector>
-
+ 
 #include "glog/logging.h"
 #include "gflags/gflags.h"
 #include "eigen3/Eigen/Dense"
