@@ -110,6 +110,7 @@ float Navigation::getShieldedAction(float state, float action){
   int abstract_state = static_cast<int>(std::lround(state/(0.2f)));
   abstract_state < 0 ? abstract_state = 0 : (abstract_state > 50 ? abstract_state = 50 : 0);   
   std::string key = std::to_string(abstract_state);
+  std::cout << "SK: " << abstract_state << "\n";
   
   // Abstracting continuous actions to discrete value
   // -1.0 - -0.8 -> 0
@@ -137,7 +138,7 @@ float Navigation::getShieldedAction(float state, float action){
     for(int i = 5; i < 10 ; i++) {
       key_temp = key + '-' + std::to_string(i);
       // std::cout << key_temp << "\n";
-      std::cout << key_temp << ": " << shield_[key_temp] << "\n";
+      // std::cout << key_temp << ": " << shield_[key_temp] << "\n";
       if(shield_[key_temp] > pmax) {
         pmax = shield_[key_temp];
         pmax_i = i;
@@ -452,15 +453,16 @@ void Navigation::Run() {
   // NAIVE LATENCY COMPENSATION
   // Works well for static obstacles in the environment
   float v0 = vel_profile[system_lat - 1];
-  float dis_rem_delay_compensated = distance_remaining - (vel_sum) * del_t;
+  // float dis_rem_delay_compensated = distance_remaining - (vel_sum) * del_t;
 
   // Time optimal control.
-  float opt_action = OneDTimeOptimalControl(v0, dis_rem_delay_compensated);
+  float opt_action = OneDTimeOptimalControl(v0, distance_remaining);
   drive_msg_.velocity = opt_action;
   
   // Shielding here
   float shielded_action = getShieldedAction(distance_remaining, opt_action);
   std::cout << "OA: " << opt_action << ", SA: " << shielded_action << "\n";
+  std::cout << "DR: " << distance_remaining << "m" << "\n"; 
   drive_msg_.velocity = shielded_action;
   
   // Update velocity profile

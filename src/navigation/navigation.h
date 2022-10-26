@@ -132,7 +132,7 @@ class Navigation {
 
   // Shield
   std::map<std::string, float> shield_;
-  float pmax_threshold = 0.95;
+  float pmax_threshold = 0.5;
   void readShieldCSV();
   float getShieldedAction(float state, float action);
 
