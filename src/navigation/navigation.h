@@ -112,7 +112,7 @@ class Navigation {
   // kinematic variables 
   float max_acc = 4.0;
   float max_dec = 4.0;
-  float max_vel = 1.0;
+  float max_vel = 2.0;
   float del_t = 0.05;
   const static int act_lat = 3;
   const static int sens_lat = 1;
@@ -126,7 +126,7 @@ class Navigation {
   float width = 0.3;
   float wheel_base = 0.32;
   float track_width = 0.16;
-  float safety_margin = 0.05; 
+  float safety_margin = 0.2; 
 
   Eigen::Vector2f center_of_curve;
 

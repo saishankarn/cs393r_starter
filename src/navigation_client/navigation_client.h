@@ -125,7 +125,7 @@ class Navigation_client {
   const static int net_lat =  4;
   float tim_per = 0.05;
   float des_del = tim_per*((float)net_lat);
-  const static int system_lat = sens_lat + act_lat + net_lat;
+  const static int system_lat = sens_lat + act_lat;
   std::array<float, system_lat> vel_profile = {0};
 
   // navigation variables
@@ -133,7 +133,7 @@ class Navigation_client {
   float width = 0.3;
   float wheel_base = 0.32;
   float track_width = 0.16;
-  float safety_margin = 0.05; 
+  float safety_margin = 0.2; 
 
   Eigen::Vector2f center_of_curve;
 

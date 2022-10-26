@@ -304,8 +304,9 @@ void Navigation_client::Run() {
   std::cout << "Dis rem: " << distance_remaining_ << "; Del comp dis rem: " << dis_rem_delay_compensated << "\n";
   
   // Obtain shielded action
-  // float shielded_action = getShieldedAction(distance_remaining_, opt_action);
-  float shielded_action = opt_action;
+  float shielded_action = getShieldedAction(distance_remaining_ + 0.2, opt_action); //0.2 because shield considers distance below 0.2 as unsafe
+
+  // float shielded_action = opt_action;
   
   // Update drive message
   drive_msg_.curvature = chosen_curvature_;
