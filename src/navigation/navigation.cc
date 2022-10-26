@@ -463,7 +463,7 @@ void Navigation::Run() {
   // Shielding here
   float shielded_action = getShieldedAction(distance_remaining, opt_action);
   std::cout << "OA: " << opt_action << ", SA: " << shielded_action << "\n";
-  // drive_msg_.velocity = shielded_action;
+  drive_msg_.velocity = shielded_action;
   
   // Update velocity profile
   UpdateVelocityProfile(drive_msg_.velocity);

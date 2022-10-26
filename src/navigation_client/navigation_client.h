@@ -125,7 +125,7 @@ class Navigation_client {
   const static int net_lat =  4;
   float tim_per = 0.05;
   float des_del = tim_per*((float)net_lat);
-  const static int system_lat = sens_lat + act_lat;
+  const static int system_lat = sens_lat + act_lat + net_lat;
   std::array<float, system_lat> vel_profile = {0};
 
   // navigation variables

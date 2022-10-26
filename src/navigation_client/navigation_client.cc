@@ -81,9 +81,11 @@ Navigation_client::Navigation_client(const string& map_file, ros::NodeHandle* n)
   readShieldCSV();
 
   // Needs to be initialized after readShield
-  for (int16_t i = 0; i < 2*net_lat; i++) {
+  for (int16_t i = 0; i < 2*net_lat + 1; i++) {
     ros::Duration d(des_del - tim_per*0.5*i); //in seconds
-    srvMsgStruct srvMsg = {distance_remaining_, chosen_curvature_, ros::Time::now() + d};
+    std::cout << d << "\n";
+    srvMsgStruct srvMsg = {distance_remaining_, chosen_curvature_, ros::Time::now() - d};
+    std::cout << ros::Time::now() - srvMsg.scan_time_stamp << "\n";
     srv_msg_queue_.push(srvMsg);
   }
 }
@@ -284,7 +286,10 @@ void Navigation_client::Run() {
       chosen_curvature_   = srvMsg.curvature;
       scan_time_stamp     = srvMsg.scan_time_stamp;
       srv_msg_queue_.pop();
-      srvMsg = srv_msg_queue_.front();
+      if (srv_msg_queue_.empty())
+        break;
+      else
+        srvMsg = srv_msg_queue_.front();
     }
     while (((ros::Time::now() - srvMsg.scan_time_stamp).toSec()) > des_del);
   }
@@ -292,15 +297,16 @@ void Navigation_client::Run() {
     std::cout << "Server msg queue empty \n";
     scan_time_stamp    = ros::Time::now();
   }
-  // std::cout << "Time delay set for system: " <<  (ros::Time::now() - scan_time_stamp)*1000 << "\n";
+  std::cout << "Time delay set for system: " <<  (ros::Time::now() - scan_time_stamp)*1000 << "\n";
   
   //Obtain optimal action
   float opt_action, dis_rem_delay_compensated; 
   std::tie(opt_action, dis_rem_delay_compensated) = getOptimalAction(distance_remaining_);
-
+  std::cout << "Dis rem: " << distance_remaining_ << "Del comp dis rem: " << dis_rem_delay_compensated << "\n";
+  
   // Obtain shielded action
-  float shielded_action = getShieldedAction(dis_rem_delay_compensated, opt_action);
-  // float shielded_action = opt_action;
+  // float shielded_action = getShieldedAction(distance_remaining_, opt_action);
+  float shielded_action = opt_action;
   
   // Update drive message
   drive_msg_.curvature = chosen_curvature_;
