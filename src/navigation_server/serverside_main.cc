@@ -126,6 +126,7 @@ int main(int argc, char** argv) {
     std::cout << "-----------------" << "\n";
     std::cout << "within while loop" << "\n";
     ros::spinOnce();
+    serverside_->PopulateServersideBuffers();
     
     serverside_->Run();
     loop.Sleep();

@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <stdint.h>
 
-#include "simple_queue.h"
+#include "simple_queue.h" 
 
 int main() {
   // Construct the priority queue, to use uint64_t to represent node ID, and float as the priority type.

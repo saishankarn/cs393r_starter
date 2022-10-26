@@ -23,6 +23,7 @@
 #include <fstream> 
 #include "eigen3/Eigen/Dense"
 #include <math.h>
+#include <queue>
  
 #ifndef SERVERSIDE_H
 #define SERVERSIDE_H
@@ -52,7 +53,7 @@ class Serverside {
   void ObservePointCloud(const std::vector<Eigen::Vector2f>& cloud,
                          ros::Time time);
 
-  void GetAptPointCloudAndStamp();
+  void PopulateServersideBuffers();
 
   // Main function called continously from main
   void Run();
@@ -67,6 +68,14 @@ class Serverside {
   std::vector<std::vector<Eigen::Vector2f>> point_cloud_stack_;
   // a vector of ros::Time time_stamps - this will be used to store the ros time stamps corresponding to the muliple laser callbacks
   std::vector<ros::Time> point_cloud_time_stamp_stack_;
+
+  // both point_cloud_stack_ and point_cloud_time_stamp_stack_ get emptied after every ros::spinonce
+  // we need to filter out the required point clouds from the point_cloud_stack_ and assign them to a serverside point cloud buffer.
+  // the first value of the serverside point cloud buffer will be used to generate path params for one call of the Run function. 
+  // These path params will be transfered to the robot, thus for every 50 ms one value will be sent.
+
+  std::vector<std::vector<Eigen::Vector2f>> serverside_point_cloud_buffer_;
+  std::vector<ros::Time> serverside_point_cloud_time_stamp_buffer_;
 
   // required point cloud.
   std::vector<Eigen::Vector2f> point_cloud_;
@@ -93,6 +102,12 @@ class Serverside {
   float safety_margin = 0.05; 
 
   Eigen::Vector2f center_of_curve;
+
+  // synchronization variables and constants 
+  float scan_frequency = 40.0;
+  float server_frequency = 20.0;
+  int choose_after = static_cast<int>(scan_frequency/server_frequency);
+  int choice_index = 0;
 
 };
 
