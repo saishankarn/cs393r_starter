@@ -83,9 +83,7 @@ Navigation_client::Navigation_client(const string& map_file, ros::NodeHandle* n)
   // Needs to be initialized after readShield
   for (int16_t i = 0; i < 2*net_lat + 1; i++) {
     ros::Duration d(des_del - tim_per*0.5*i); //in seconds
-    std::cout << d << "\n";
     srvMsgStruct srvMsg = {distance_remaining_, chosen_curvature_, ros::Time::now() - d};
-    std::cout << ros::Time::now() - srvMsg.scan_time_stamp << "\n";
     srv_msg_queue_.push(srvMsg);
   }
 }
@@ -270,7 +268,7 @@ void Navigation_client::Run() {
   visualization::ClearVisualizationMsg(global_viz_msg_);
  
   // If odometry has not been initialized, we can't do anything.
-  if (!odom_initialized_) return;
+  // if (!odom_initialized_) return;
 
   // Get the location of the robot with respect to its initial reference frame.
   Eigen::Vector2f relPos;
@@ -288,8 +286,9 @@ void Navigation_client::Run() {
       srv_msg_queue_.pop();
       if (srv_msg_queue_.empty())
         break;
-      else
+      else {
         srvMsg = srv_msg_queue_.front();
+      }
     }
     while (((ros::Time::now() - srvMsg.scan_time_stamp).toSec()) > des_del);
   }
@@ -302,7 +301,7 @@ void Navigation_client::Run() {
   //Obtain optimal action
   float opt_action, dis_rem_delay_compensated; 
   std::tie(opt_action, dis_rem_delay_compensated) = getOptimalAction(distance_remaining_);
-  std::cout << "Dis rem: " << distance_remaining_ << "Del comp dis rem: " << dis_rem_delay_compensated << "\n";
+  std::cout << "Dis rem: " << distance_remaining_ << "; Del comp dis rem: " << dis_rem_delay_compensated << "\n";
   
   // Obtain shielded action
   // float shielded_action = getShieldedAction(distance_remaining_, opt_action);

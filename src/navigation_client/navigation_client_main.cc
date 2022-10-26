@@ -143,6 +143,7 @@ int main(int argc, char** argv) {
       n.subscribe(FLAGS_server_topic, 20, &ServerPathParamCallback);
 
   RateLoop loop(20.0);
+  loop.Sleep();
   while (run_ && ros::ok()) {
     ros::spinOnce();
     navigation_client_->Run();
