@@ -77,36 +77,17 @@ bool run_ = true;
 //sensor_msgs::LaserScan last_laser_msg_;
 Navigation_client* navigation_client_ = nullptr;
 
-/*
-void LaserCallback(const sensor_msgs::LaserScan& msg) {
-  if (FLAGS_v > 0) {
-    printf("Laser t=%f, dt=%f\n",
-           msg.header.stamp.toSec(),
-           GetWallTime() - msg.header.stamp.toSec());
-  }
-  // Location of the laser on the robot. Assumes the laser is forward-facing.
-  const Vector2f kLaserLoc(0.2, 0);
-
-  vector<Vector2f> point_cloud_;
-  for(int ranges_idx = 0; ranges_idx < int(msg.ranges.size()); ranges_idx++){
-    Vector2f v(0, 0);
-    v[0] = msg.ranges[ranges_idx] * cos(msg.angle_min + ranges_idx * msg.angle_increment);
-    v[1] = msg.ranges[ranges_idx] * sin(msg.angle_min + ranges_idx * msg.angle_increment);
-    point_cloud_.push_back(v + kLaserLoc);
-  }
-  navigation_client_->ObservePointCloud(point_cloud_, msg.header.stamp.toSec());
-  last_laser_msg_ = msg;
-}
-*/
-
 void ServerPathParamCallback(const geometry_msgs::PointStamped& msg) {
   if (FLAGS_v > 0) {
     printf("ServerPathParam corresponding to timet=%f\n", msg.header.stamp.toSec());
   }
-  float distance_remaining = msg.point.x;
-  float curvature = msg.point.y;
-  ros::Time scan_time_stamp = msg.header.stamp;
-  navigation_client_->GetPathParams(distance_remaining, curvature, scan_time_stamp);
+  navigation_client::srvMsgStruct srvMsg;
+  srvMsg.distance_remaining = msg.point.x;
+  srvMsg.curvature = msg.point.y;
+  srvMsg.scan_time_stamp = msg.header.stamp;
+  
+  navigation_client_->QueueSrvMsg(srvMsg);
+  std::cout << "Network time delay: " << (ros::Time::now() - srvMsg.scan_time_stamp)*1000.0 << std::endl;
 }
 
 void OdometryCallback(const nav_msgs::Odometry& msg) {
@@ -156,22 +137,16 @@ int main(int argc, char** argv) {
       n.subscribe(FLAGS_odom_topic, 1, &OdometryCallback);
   ros::Subscriber localization_sub =
       n.subscribe(FLAGS_loc_topic, 1, &LocalizationCallback);
-  /*
-  ros::Subscriber laser_sub =
-      n.subscribe(FLAGS_laser_topic, 1, &LaserCallback);
-  */
   ros::Subscriber goto_sub =
       n.subscribe("/move_base_simple/goal", 1, &GoToCallback); 
   ros::Subscriber server_sub = 
-      n.subscribe(FLAGS_server_topic, 1, &ServerPathParamCallback);
+      n.subscribe(FLAGS_server_topic, 20, &ServerPathParamCallback);
 
   RateLoop loop(20.0);
   while (run_ && ros::ok()) {
-    // double current_time = GetMonotonicTime();
     ros::spinOnce();
     navigation_client_->Run();
     loop.Sleep();
-    // std::cout << GetMonotonicTime() - current_time << std::endl;
   }
   delete navigation_client_;
   return 0;

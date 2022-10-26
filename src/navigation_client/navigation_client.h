@@ -23,6 +23,7 @@
 #include <fstream>
 #include "eigen3/Eigen/Dense"
 #include <math.h>
+#include <queue>
 
 #ifndef NAVIGATION_CLIENT_H
 #define NAVIGATION_CLIENT_H
@@ -42,6 +43,12 @@ struct PathOption {
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
 };
 
+struct srvMsgStruct{
+  float distance_remaining;
+  float curvature;
+  ros::Time scan_time_stamp;
+};
+
 class Navigation_client {
  public:
 
@@ -52,7 +59,7 @@ class Navigation_client {
   void UpdateLocation(const Eigen::Vector2f& loc, float angle);
 
   // Used in callback to assign the path params corresponding to a delayed laser scan
-  void GetPathParams(float distance_remaining, float curvature, ros::Time scan_time_stamp);
+  void QueueSrvMsg(srvMsgStruct srvMsg);
 
   // Used in callback for odometry messages to update based on odometry.
   void UpdateOdometry(const Eigen::Vector2f& loc,
@@ -105,11 +112,6 @@ class Navigation_client {
   // Navigation goal angle.
   float nav_goal_angle_;
 
-  // Variables updated by subscribing to server_path_params topic
-  float distance_remaining_;
-  float chosen_curvature_;
-  ros::Time scan_time_stamp_;
-
   // kinematic variables 
   float max_acc = 4.0;
   float max_dec = 4.0;
@@ -135,6 +137,10 @@ class Navigation_client {
   float pmax_threshold = 0.95;
   void readShieldCSV();
   float getShieldedAction(float state, float action);
+
+  // Handling server messages
+  std::queue<srvMsgStruct> srv_msg_queue_;
+
 
 };
 
