@@ -111,6 +111,9 @@ class Navigation_client {
   Eigen::Vector2f nav_goal_loc_;
   // Navigation goal angle.
   float nav_goal_angle_;
+  // Targets.
+  float distance_remaining_;
+  float chosen_curvature_;
 
   // kinematic variables 
   float max_acc = 4.0;
@@ -119,7 +122,9 @@ class Navigation_client {
   float del_t = 0.05;
   const static int act_lat = 3;
   const static int sens_lat = 1;
-  const static int net_lat =  5;
+  const static int net_lat =  4;
+  float tim_per = 0.05;
+  float des_del = tim_per*((float)net_lat);
   const static int system_lat = sens_lat + act_lat;
   std::array<float, system_lat> vel_profile = {0};
 

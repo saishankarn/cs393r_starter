@@ -67,6 +67,8 @@ Navigation_client::Navigation_client(const string& map_file, ros::NodeHandle* n)
     nav_complete_(true),
     nav_goal_loc_(5, 0),
     nav_goal_angle_(0),
+    distance_remaining_(0.0),
+    chosen_curvature_(0.0),
     center_of_curve(0, 0){
   drive_pub_ = n->advertise<AckermannCurvatureDriveMsg>(
       "ackermann_curvature_drive", 1);
@@ -77,8 +79,11 @@ Navigation_client::Navigation_client(const string& map_file, ros::NodeHandle* n)
       "map", "navigation_global");
   InitRosHeader("base_link", &drive_msg_.header);
   readShieldCSV();
-  for (int16_t i = 0; i < net_lat; i++) {
-    srvMsgStruct srvMsg = {0.0, 0.0, ros::Time::now()};
+
+  // Needs to be initialized after readShield
+  for (int16_t i = 0; i < 2*net_lat; i++) {
+    ros::Duration d(des_del - tim_per*0.5*i); //in seconds
+    srvMsgStruct srvMsg = {distance_remaining_, chosen_curvature_, ros::Time::now() + d};
     srv_msg_queue_.push(srvMsg);
   }
 }
@@ -269,36 +274,36 @@ void Navigation_client::Run() {
   Eigen::Vector2f relPos;
   float relAngle;
   std::tie(relPos, relAngle) = getRelativePose(odom_start_loc_, odom_start_angle_, odom_loc_, odom_angle_);
-  
-  float distance_remaining, chosen_curvature;
-  ros::Time scan_time_stamp;
-
+ 
   // Dequeue server commands
+  ros::Time scan_time_stamp;
   if (!srv_msg_queue_.empty()) {
-    srvMsgStruct srvMsg = srv_msg_queue_.front();
-    distance_remaining = srvMsg.distance_remaining;
-    chosen_curvature   = srvMsg.curvature;
-    scan_time_stamp    = srvMsg.scan_time_stamp;
-    srv_msg_queue_.pop();
+    srvMsgStruct srvMsg = srv_msg_queue_.front();;
+    do {
+      distance_remaining_ = srvMsg.distance_remaining;
+      chosen_curvature_   = srvMsg.curvature;
+      scan_time_stamp     = srvMsg.scan_time_stamp;
+      srv_msg_queue_.pop();
+      srvMsg = srv_msg_queue_.front();
+    }
+    while (((ros::Time::now() - srvMsg.scan_time_stamp).toSec()) > des_del);
   }
   else {
     std::cout << "Server msg queue empty \n";
-    distance_remaining = 0.0;
-    chosen_curvature   = 0.0;
     scan_time_stamp    = ros::Time::now();
   }
-  std::cout << "Time delay set for system: " <<  (ros::Time::now() - scan_time_stamp)*1000 << "\n";
+  // std::cout << "Time delay set for system: " <<  (ros::Time::now() - scan_time_stamp)*1000 << "\n";
   
   //Obtain optimal action
   float opt_action, dis_rem_delay_compensated; 
-  std::tie(opt_action, dis_rem_delay_compensated) = getOptimalAction(distance_remaining);
+  std::tie(opt_action, dis_rem_delay_compensated) = getOptimalAction(distance_remaining_);
 
   // Obtain shielded action
   float shielded_action = getShieldedAction(dis_rem_delay_compensated, opt_action);
-  shielded_action = opt_action;
+  // float shielded_action = opt_action;
   
   // Update drive message
-  drive_msg_.curvature = chosen_curvature;
+  drive_msg_.curvature = chosen_curvature_;
   drive_msg_.velocity  = shielded_action;
   
   // Update velocity profile

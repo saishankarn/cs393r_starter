@@ -294,7 +294,7 @@ std::tuple<float, float, float> Navigation::GetPathScoringParams(float curvature
         }
       }
     }
-    // std::cout << freePathLength << "\n";
+    std::cout << "Free path length: " << freePathLength << "\n";
     // Including the safety margin in the free path length
     freePathLength = freePathLength - (0.5*wheel_base + 0.5*length + safety_margin) ;
     distanceToGoal = std::max(0.0f, localGoal - freePathLength);
@@ -453,6 +453,8 @@ void Navigation::Run() {
   // Works well for static obstacles in the environment
   float v0 = vel_profile[system_lat - 1];
   float dis_rem_delay_compensated = distance_remaining - (vel_sum) * del_t;
+  std::cout << "Distance remaining: " << distance_remaining << "; Delay compensated distance remaining" 
+  << dis_rem_delay_compensated << "\n";
 
   // Time optimal control.
   float opt_action = OneDTimeOptimalControl(v0, dis_rem_delay_compensated);
@@ -461,7 +463,7 @@ void Navigation::Run() {
   // Shielding here
   float shielded_action = getShieldedAction(distance_remaining, opt_action);
   std::cout << "OA: " << opt_action << ", SA: " << shielded_action << "\n";
-  drive_msg_.velocity = shielded_action;
+  // drive_msg_.velocity = shielded_action;
   
   // Update velocity profile
   UpdateVelocityProfile(drive_msg_.velocity);

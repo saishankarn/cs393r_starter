@@ -87,7 +87,7 @@ void ServerPathParamCallback(const geometry_msgs::PointStamped& msg) {
   srvMsg.scan_time_stamp = msg.header.stamp;
   
   navigation_client_->QueueSrvMsg(srvMsg);
-  std::cout << "Network time delay: " << (ros::Time::now() - srvMsg.scan_time_stamp)*1000.0 << std::endl;
+  // std::cout << "Network time delay: " << (ros::Time::now() - srvMsg.scan_time_stamp)*1000.0 << std::endl;
 }
 
 void OdometryCallback(const nav_msgs::Odometry& msg) {
