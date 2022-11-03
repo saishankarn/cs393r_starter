@@ -225,10 +225,10 @@ void Serverside::ObservePointCloud(const vector<Vector2f>& cloud,
   //point_cloud_ = cloud; 
   //point_cloud_time_stamp_ = time;   
 
-  point_cloud_stack_.push_back(point_cloud_);
+  point_cloud_stack_.push_back(cloud);
   point_cloud_time_stamp_stack_.push_back(time);
   std::cout << "In the callback function, the time stamp being added is " << time << "\n";
-  //std::cout << "size of point cloud stack is " << size(point_cloud_stack_) << "\n";
+  std::cout << "size of point cloud stack is " << size(point_cloud_stack_) << "\n";
 
 }
 
@@ -241,6 +241,7 @@ void Serverside::PopulateServersideBuffers() {
     for (unsigned int pc_idx = 0; pc_idx < point_cloud_stack_.size(); pc_idx++) { 
       loc = choice_index + pc_idx;
       if (loc % choose_after == 0) {
+        //std::cout << size(point_cloud_stack_[pc_idx]) << "\n";
         serverside_point_cloud_buffer_.push_back(point_cloud_stack_[pc_idx]);
         serverside_point_cloud_time_stamp_buffer_.push_back(point_cloud_time_stamp_stack_[pc_idx]);
       }
@@ -277,6 +278,7 @@ void Serverside::Run() {
   std::cout << "The size of the serverside point cloud buffer is " << size(serverside_point_cloud_buffer_) << "\n";
   if (size(serverside_point_cloud_buffer_) > 0) {
     point_cloud_ = serverside_point_cloud_buffer_[0];
+    std::cout << "point cloud size " << size(point_cloud_) << "\n"; 
     point_cloud_time_stamp_ = serverside_point_cloud_time_stamp_buffer_[0];
     serverside_point_cloud_buffer_.erase(serverside_point_cloud_buffer_.begin());
     serverside_point_cloud_time_stamp_buffer_.erase(serverside_point_cloud_time_stamp_buffer_.begin());
@@ -325,6 +327,7 @@ void Serverside::Run() {
     //std::cout << "the distance remaning" << freePathLengthCandidate << "\n";
     distance_remaining = freePathLengthCandidate;
     collision_point = collision_point_candidate;
+    std::cout << "distance remaining" << distance_remaining << "\n";
 
     server_msg_.point.x = distance_remaining;
     server_msg_.point.y = curvature_candidate;

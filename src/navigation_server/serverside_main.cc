@@ -86,7 +86,7 @@ void LaserCallback(const sensor_msgs::LaserScan& msg) {
   cout << "expected num laser readings : " << (msg.angle_max - msg.angle_min) / msg.angle_increment << "\n";
   cout << "message header : " << msg.header << "\n";
   cout << "sensor reading recorded time : " << msg.header.stamp << "\n";
-  cout << "calculated sensor reading recorded time : " << h_time << "\n";
+  //cout << "calculated sensor reading recorded time : " << h_time << "\n";
   */
   vector<Vector2f> point_cloud_;
   for(int ranges_idx = 0; ranges_idx < int(msg.ranges.size()); ranges_idx++){
@@ -120,7 +120,7 @@ int main(int argc, char** argv) {
   ros::Subscriber laser_sub =
       n.subscribe(FLAGS_laser_topic, 20, &LaserCallback);
 
-  RateLoop loop(20.0);
+  RateLoop loop(40.0);
 
   while (run_ && ros::ok()) {
     std::cout << "-----------------" << "\n";

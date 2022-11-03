@@ -105,7 +105,7 @@ class Serverside {
 
   // synchronization variables and constants 
   float scan_frequency = 40.0;
-  float server_frequency = 20.0;
+  float server_frequency = 40.0;
   int choose_after = static_cast<int>(scan_frequency/server_frequency);
   int choice_index = 0;
 
