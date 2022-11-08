@@ -26,6 +26,7 @@
 #include <string.h>
 #include <inttypes.h> 
 #include <vector>
+#include <ctime>
 
 #include "glog/logging.h"
 #include "gflags/gflags.h"
@@ -73,6 +74,12 @@ DEFINE_string(init_topic,
 DEFINE_string(map, "maps/GDC1.txt", "Name of vector map file");
 DEFINE_string(server_topic, "server_path_params", "Name of ROS topic for path params from the server side");
 
+std::time_t t = std::time(0);   // get time now
+//std::cout << "time : " << t << std::endl;
+std::string val = "delay_measurements/utexas_" + std::to_string(t) + ".csv";
+std::ofstream out(val);
+
+
 bool run_ = true;
 //sensor_msgs::LaserScan last_laser_msg_;
 Navigation_client* navigation_client_ = nullptr;
@@ -87,7 +94,9 @@ void ServerPathParamCallback(const geometry_msgs::PointStamped& msg) {
   srvMsg.scan_time_stamp = msg.header.stamp;
   
   navigation_client_->QueueSrvMsg(srvMsg);
-  // std::cout << "Network time delay: " << (ros::Time::now() - srvMsg.scan_time_stamp)*1000.0 << std::endl;
+  std::cout << "Network time delay: " << (ros::Time::now() - srvMsg.scan_time_stamp)*1000.0 << std::endl;
+  out << (ros::Time::now() - srvMsg.scan_time_stamp)*1000.0 << ',';
+  out << '\n';
 }
 
 void OdometryCallback(const nav_msgs::Odometry& msg) {
@@ -141,6 +150,12 @@ int main(int argc, char** argv) {
       n.subscribe("/move_base_simple/goal", 1, &GoToCallback); 
   ros::Subscriber server_sub = 
       n.subscribe(FLAGS_server_topic, 20, &ServerPathParamCallback);
+  
+  //ros::Time stamp = ros::Time::now();
+  //std::stringstream ss;
+  //ss << stamp.sec << "." << stamp.nsec;
+  //std::cout << ss.str() << std::endl;
+  //std::ofstream out(ss.str());
 
   RateLoop loop(20.0);
   loop.Sleep();

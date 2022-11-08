@@ -293,15 +293,15 @@ void Navigation_client::Run() {
     while (((ros::Time::now() - srvMsg.scan_time_stamp).toSec()) > des_del);
   }
   else {
-    std::cout << "Server msg queue empty \n";
+    //std::cout << "Server msg queue empty \n";
     scan_time_stamp    = ros::Time::now();
   }
-  std::cout << "Time delay set for system: " <<  (ros::Time::now() - scan_time_stamp)*1000 << "\n";
+  //std::cout << "Time delay set for system: " <<  (ros::Time::now() - scan_time_stamp)*1000 << "\n";
   
   //Obtain optimal action
   float opt_action, dis_rem_delay_compensated; 
   std::tie(opt_action, dis_rem_delay_compensated) = getOptimalAction(distance_remaining_);
-  std::cout << "Dis rem: " << distance_remaining_ << "; Del comp dis rem: " << dis_rem_delay_compensated << "\n";
+  //std::cout << "Dis rem: " << distance_remaining_ << "; Del comp dis rem: " << dis_rem_delay_compensated << "\n";
   
   // Obtain shielded action
   // float shielded_action = getShieldedAction(distance_remaining_ + 0.2, opt_action); //0.2 because shield considers distance below 0.2 as unsafe
