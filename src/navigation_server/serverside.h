@@ -53,6 +53,8 @@ class Serverside {
   void ObservePointCloud(const std::vector<Eigen::Vector2f>& cloud,
                          ros::Time time);
 
+  void ObserveImage(ros::Time time);
+
   void PopulateServersideBuffers();
 
   // Main function called continously from main
@@ -68,6 +70,7 @@ class Serverside {
   std::vector<std::vector<Eigen::Vector2f>> point_cloud_stack_;
   // a vector of ros::Time time_stamps - this will be used to store the ros time stamps corresponding to the muliple laser callbacks
   std::vector<ros::Time> point_cloud_time_stamp_stack_;
+  std::vector<ros::Time> image_time_stamp_stack_;
 
   // both point_cloud_stack_ and point_cloud_time_stamp_stack_ get emptied after every ros::spinonce
   // we need to filter out the required point clouds from the point_cloud_stack_ and assign them to a serverside point cloud buffer.
@@ -76,11 +79,13 @@ class Serverside {
 
   std::vector<std::vector<Eigen::Vector2f>> serverside_point_cloud_buffer_;
   std::vector<ros::Time> serverside_point_cloud_time_stamp_buffer_;
+  std::vector<ros::Time> serverside_image_time_stamp_buffer_;
 
   // required point cloud.
   std::vector<Eigen::Vector2f> point_cloud_;
   //time stamp corresponding to the required point cloud
   ros::Time point_cloud_time_stamp_;
+  ros::Time image_time_stamp_;
 
   // kinematic variables 
   float max_acc = 4.0;
