@@ -76,7 +76,7 @@ DEFINE_string(server_topic, "server_path_params", "Name of ROS topic for path pa
 
 std::time_t t = std::time(0);   // get time now
 //std::cout << "time : " << t << std::endl;
-std::string val = "delay_measurements/utexas_" + std::to_string(t) + ".csv";
+std::string val = "delay_measurements/nov-29-2022/orbeec/amic/" + std::to_string(t) + ".csv";
 std::ofstream out(val);
 
 
