@@ -123,7 +123,11 @@ class Navigation_client {
   const static int act_lat = 3;
   const static int sens_lat = 1;
   const static int net_lat =  4;
-  float tim_per = 0.05;
+  
+  // Controller sampling time in seconds
+  float tim_per = del_t;                                     // 50 milli-seconds
+  
+  // Delay encountered by the system due to network latency
   float des_del = tim_per*((float)net_lat);
   const static int system_lat = sens_lat + act_lat;
   std::array<float, system_lat> vel_profile = {0};

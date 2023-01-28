@@ -78,9 +78,19 @@ Navigation_client::Navigation_client(const string& map_file, ros::NodeHandle* n)
   global_viz_msg_ = visualization::NewVisualizationMessage(
       "map", "navigation_global");
   InitRosHeader("base_link", &drive_msg_.header);
+  
+  /* 
+    READING SHIELD CSV:
+      Takes a considerable amount of time. Hence ros_time commands need to be executed 
+      after this function call.
+  */
   readShieldCSV();
 
-  // Needs to be initialized after readShield
+  /*
+    SERVER MESSAGE QUEUE:
+
+
+  */
   for (int16_t i = 0; i < 2*net_lat + 1; i++) {
     ros::Duration d(des_del - tim_per*0.5*i); //in seconds
     srvMsgStruct srvMsg = {distance_remaining_, chosen_curvature_, ros::Time::now() - d};
