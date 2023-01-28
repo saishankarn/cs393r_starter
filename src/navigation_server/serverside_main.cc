@@ -33,7 +33,6 @@
 #include "eigen3/Eigen/Geometry"
 #include "gflags/gflags.h"
 #include "sensor_msgs/LaserScan.h"
-#include "sensor_msgs/Image.h"
 #include "ros/ros.h"
 #include "shared/math/math_util.h"
 #include "shared/util/timer.h"
@@ -57,7 +56,6 @@ using namespace std;
 // Create command line arguments
 DEFINE_string(laser_topic, "scan", "Name of ROS topic for LIDAR data");
 DEFINE_string(map, "maps/GDC1.txt", "Name of vector map file");
-DEFINE_string(image_topic, "/camera/rgb/image_raw", "Name of ROS topic for ORBEEC");
 
 bool run_ = true;
 sensor_msgs::LaserScan last_laser_msg_;
@@ -102,19 +100,6 @@ void LaserCallback(const sensor_msgs::LaserScan& msg) {
   last_laser_msg_ = msg;
 }
 
-sensor_msgs::Image last_image_msg_;
-
-void ImageCallback(const sensor_msgs::Image& msg){
-  cout << "------------------------" << "\n";
-  cout << "printing the image message" << "\n";
-  cout << "Image width: " << msg.width << "\n"; 
-
-  serverside_->ObserveImage(msg.header.stamp);
-
-}
-
-
-
 void SignalHandler(int) {
   if (!run_) {
     printf("Force Exit.\n");
@@ -132,10 +117,8 @@ int main(int argc, char** argv) {
   ros::NodeHandle n;
   serverside_ = new Serverside(FLAGS_map, &n);
 
-  //ros::Subscriber laser_sub = n.subscribe(FLAGS_laser_topic, 20, &LaserCallback);
-
-  ros::Subscriber image_sub = 
-	  n.subscribe(FLAGS_image_topic, 50, &ImageCallback);
+  ros::Subscriber laser_sub =
+      n.subscribe(FLAGS_laser_topic, 20, &LaserCallback);
 
   RateLoop loop(40.0);
 

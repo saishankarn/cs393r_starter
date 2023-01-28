@@ -232,38 +232,29 @@ void Serverside::ObservePointCloud(const vector<Vector2f>& cloud,
 
 }
 
-void Serverside::ObserveImage(ros::Time time) {
-  image_time_stamp_stack_.push_back(time);
-  std::cout << "In the callback function, the time stamo being added is " << time << "\n";
-
-}
-
 void Serverside::PopulateServersideBuffers() {
 
   std::cout << "The current value of choice index is " << choice_index << "\n";
 
-  if (size(image_time_stamp_stack_) > 0) {
+  if (size(point_cloud_stack_) > 0) {
     int loc = choice_index;
-    for (unsigned int pc_idx = 0; pc_idx < image_time_stamp_stack_.size(); pc_idx++) { 
+    for (unsigned int pc_idx = 0; pc_idx < point_cloud_stack_.size(); pc_idx++) { 
       loc = choice_index + pc_idx;
       if (loc % choose_after == 0) {
         //std::cout << size(point_cloud_stack_[pc_idx]) << "\n";
-        //serverside_point_cloud_buffer_.push_back(point_cloud_stack_[pc_idx]);
-        //serverside_point_cloud_time_stamp_buffer_.push_back(point_cloud_time_stamp_stack_[pc_idx]);
-        serverside_image_time_stamp_buffer_.push_back(image_time_stamp_stack_[pc_idx]);
+        serverside_point_cloud_buffer_.push_back(point_cloud_stack_[pc_idx]);
+        serverside_point_cloud_time_stamp_buffer_.push_back(point_cloud_time_stamp_stack_[pc_idx]);
       }
     }
     choice_index = loc % choose_after + 1;
-    //point_cloud_stack_.clear();
-    //point_cloud_time_stamp_stack_.clear(); 
-    image_time_stamp_stack_.clear();
+    point_cloud_stack_.clear();
+    point_cloud_time_stamp_stack_.clear(); 
     //std::cout << "The modified value of choice index is " << choice_index << "\n";
   } 
 
-  if (size(serverside_image_time_stamp_buffer_) > 50){
-    //serverside_point_cloud_buffer_.clear();
-    //serverside_point_cloud_time_stamp_buffer_.clear(); 
-    serverside_image_time_stamp_buffer_.clear();
+  if (size(serverside_point_cloud_buffer_) > 20){
+    serverside_point_cloud_buffer_.clear();
+    serverside_point_cloud_time_stamp_buffer_.clear(); 
   }
 
 }
@@ -285,19 +276,18 @@ void Serverside::Run() {
   // This function gets called 20 times a second to form the control loop.
   // get the required point cloud from the point cloud stack
   std::cout << "The size of the serverside point cloud buffer is " << size(serverside_point_cloud_buffer_) << "\n";
-  if (size(serverside_image_time_stamp_buffer_) > 0) {
-    //point_cloud_ = serverside_point_cloud_buffer_[0];
-    //std::cout << "point cloud size " << size(point_cloud_) << "\n"; 
-    //point_cloud_time_stamp_ = serverside_point_cloud_time_stamp_buffer_[0];
-    //serverside_point_cloud_buffer_.erase(serverside_point_cloud_buffer_.begin());
-    //serverside_point_cloud_time_stamp_buffer_.erase(serverside_point_cloud_time_stamp_buffer_.begin());
-    image_time_stamp_ = serverside_image_time_stamp_buffer_[0];
-    serverside_image_time_stamp_buffer_.erase(serverside_image_time_stamp_buffer_.begin());
-    std::cout << "the time stamp being sent is " << image_time_stamp_ << "\n";
+  if (size(serverside_point_cloud_buffer_) > 0) {
+    point_cloud_ = serverside_point_cloud_buffer_[0];
+    std::cout << "point cloud size " << size(point_cloud_) << "\n"; 
+    point_cloud_time_stamp_ = serverside_point_cloud_time_stamp_buffer_[0];
+    serverside_point_cloud_buffer_.erase(serverside_point_cloud_buffer_.begin());
+    serverside_point_cloud_time_stamp_buffer_.erase(serverside_point_cloud_time_stamp_buffer_.begin());
+
+    std::cout << "the time stamp being sent is " << point_cloud_time_stamp_ << "\n";
 
     // Obstacle avoidance.
-    //Eigen::Vector2f collision_point; // to visualize the first point of collision with an obstacle given a path
-    //Eigen::Vector2f collision_point_candidate;
+    Eigen::Vector2f collision_point; // to visualize the first point of collision with an obstacle given a path
+    Eigen::Vector2f collision_point_candidate;
     float distance_remaining = 0.0; // setting a minimum value of zero
   
     // float best_score = -kInf;
@@ -328,16 +318,16 @@ void Serverside::Run() {
 
     // STRAIGHT LINE MOTION ONLY
     float curvature_candidate = 0.0;
-    //float freePathLengthCandidate;
-    //float distanceToGoalCandidate;
-    //float clearanceCandidate;
+    float freePathLengthCandidate;
+    float distanceToGoalCandidate;
+    float clearanceCandidate;
     //std::cout << "right before the GetPathScoringParams" << "\n";
     //std::cout << "size of point cloud" << size(point_cloud_) << "\n";
-    //std::tie(freePathLengthCandidate, distanceToGoalCandidate, clearanceCandidate) = GetPathScoringParams(curvature_candidate, collision_point_candidate);
+    std::tie(freePathLengthCandidate, distanceToGoalCandidate, clearanceCandidate) = GetPathScoringParams(curvature_candidate, collision_point_candidate);
     //std::cout << "the distance remaning" << freePathLengthCandidate << "\n";
-    //distance_remaining = freePathLengthCandidate;
-    //collision_point = collision_point_candidate;
-    //std::cout << "distance remaining" << distance_remaining << "\n";
+    distance_remaining = freePathLengthCandidate;
+    collision_point = collision_point_candidate;
+    std::cout << "distance remaining" << distance_remaining << "\n";
 
     server_msg_.point.x = distance_remaining;
     server_msg_.point.y = curvature_candidate;
@@ -350,7 +340,7 @@ void Serverside::Run() {
     //depth_msg_.header.stamp = ros::Time::now();
     //visualization::DrawRobotMargin(length, width, wheel_base, track_width, safety_margin, local_viz_msg_);
     //visualization::DrawCross(collision_point, 0.5, 0x000000, local_viz_msg_);
-    server_msg_.header.stamp = image_time_stamp_;
+    server_msg_.header.stamp = point_cloud_time_stamp_;
     //std::cout << "-------------------------" << "\n";
     //std::cout << "point cloud time stamp" << point_cloud_time_stamp_ << "\n";
     //std::cout << "server msg time stamp" << server_msg_.header.stamp << "\n";
