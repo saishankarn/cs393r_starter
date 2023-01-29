@@ -187,7 +187,7 @@ float Navigation_client::getShieldedAction(float state, float action){
     }
     
     // pmax_i : [0,..., 5]
-    return std::max(0.0, pmax_i * 0.25 - 0.375);
+    return std::max(0.0, pmax_i * 0.25 - 0.250);
   }
 }
 

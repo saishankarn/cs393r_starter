@@ -117,7 +117,7 @@ class Navigation_client {
   float chosen_curvature_;
 
   // kinematic variables 
-  float max_acc = 4.0;
+  float max_acc = 2.0;
   float max_dec = 4.0;
   float max_vel = 1.0;
   float del_t = 0.10;
