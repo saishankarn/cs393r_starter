@@ -27,6 +27,7 @@
 #include <inttypes.h> 
 #include <vector>
 #include <ctime>
+#include <iostream>
 
 #include "glog/logging.h"
 #include "gflags/gflags.h"
@@ -74,11 +75,8 @@ DEFINE_string(init_topic,
 DEFINE_string(map, "maps/GDC1.txt", "Name of vector map file");
 DEFINE_string(server_topic, "server_path_params", "Name of ROS topic for path params from the server side");
 
-std::time_t t = std::time(0);   // get time now
-//std::cout << "time : " << t << std::endl;
-std::string val = "delay_measurements/nov-29-2022/orbeec/amic/" + std::to_string(t) + ".csv";
-std::ofstream out(val);
-
+// Logging File
+static std::ofstream log_file_spin_loop("log/2023-jan-28/spin_loop_" + std::to_string(std::time(0)) + ".csv");
 
 bool run_ = true;
 //sensor_msgs::LaserScan last_laser_msg_;
@@ -92,11 +90,13 @@ void ServerPathParamCallback(const geometry_msgs::PointStamped& msg) {
   srvMsg.distance_remaining = msg.point.x;
   srvMsg.curvature = msg.point.y;
   srvMsg.scan_time_stamp = msg.header.stamp;
-  
+
   navigation_client_->QueueSrvMsg(srvMsg);
+  std::cout << "Laser scan time-stamp" << srvMsg.scan_time_stamp << std::endl;
   std::cout << "Network time delay: " << (ros::Time::now() - srvMsg.scan_time_stamp)*1000.0 << std::endl;
-  out << (ros::Time::now() - srvMsg.scan_time_stamp)*1000.0 << ',';
-  out << '\n';
+  
+  log_file_spin_loop << (ros::Time::now() - srvMsg.scan_time_stamp)*1000.0
+                     << '\n';
 }
 
 void OdometryCallback(const nav_msgs::Odometry& msg) {
@@ -150,19 +150,19 @@ int main(int argc, char** argv) {
       n.subscribe("/move_base_simple/goal", 1, &GoToCallback); 
   ros::Subscriber server_sub = 
       n.subscribe(FLAGS_server_topic, 20, &ServerPathParamCallback);
-  
-  //ros::Time stamp = ros::Time::now();
-  //std::stringstream ss;
-  //ss << stamp.sec << "." << stamp.nsec;
-  //std::cout << ss.str() << std::endl;
-  //std::ofstream out(ss.str());
 
-  RateLoop loop(20.0);
+  // File logging commands
+  log_file_spin_loop << "Network Latency \n";
+
+  // Main loop 
+  RateLoop loop(10.0);
   loop.Sleep();
   while (run_ && ros::ok()) {
+    std::cout << "-----------------------" << std::endl;
     ros::spinOnce();
     navigation_client_->Run();
     loop.Sleep();
+    std::cout << "-----------------------" << std::endl;
   }
   delete navigation_client_;
   return 0;

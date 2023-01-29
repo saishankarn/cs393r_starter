@@ -32,6 +32,8 @@
 #include "navigation_client.h"
 #include "visualization/visualization.h"
 
+# include <iostream>
+
 using Eigen::Vector2f;
 using amrl_msgs::AckermannCurvatureDriveMsg;
 using amrl_msgs::VisualizationMsg;
@@ -53,6 +55,9 @@ const float kInf = 1e5;
 const float localGoal = 5.0;
 const float dtgWeight = -0.05;
 const float clWeight = 50.0;//200;
+
+std::ofstream log_file_run_loop("log/2023-jan-28/run_loop" + std::to_string(std::time(0)) + ".csv");
+
 } //namespace
 
 namespace navigation_client {
@@ -88,14 +93,31 @@ Navigation_client::Navigation_client(const string& map_file, ros::NodeHandle* n)
 
   /*
     SERVER MESSAGE QUEUE:
-
-
+      The server publishes at twice the rate that the client subscribes.
+      The initial size of the srv_msg_queue_ will be (2*net_lat + 1).
+      Example:
+        Let,
+          net_lat  = 4
+          time_per = 0.05
+          des_del  = 0.20 (net_lat * time_per)
+        
+        Then, if the current time is t,
+          srv_msg_queue_ = [t - 0.200, t - 0.175, t - 0.150, t - 0.125,
+                            t - 0.100, t - 0.075, t - 0.050, t - 0.025, t]
+        
+        This means that the first information processed by the Run() loop
+        has a time stamp of (t - 0.200)
   */
   for (int16_t i = 0; i < 2*net_lat + 1; i++) {
     ros::Duration d(des_del - tim_per*0.5*i); //in seconds
     srvMsgStruct srvMsg = {distance_remaining_, chosen_curvature_, ros::Time::now() - d};
     srv_msg_queue_.push(srvMsg);
   }
+
+  /*
+    LOGGING STATE-ACTION DATA
+  */
+  log_file_run_loop << "State, Optimal Action, Shielded, Action \n";
 }
 
 void Navigation_client::readShieldCSV() {
@@ -121,29 +143,32 @@ float Navigation_client::getShieldedAction(float state, float action){
   // state: distance remaining, action: velocity command
   
   // Abstracting continuous state to discrete value
-  // 0.0 - 0.2 -> 0
-  // 0.2 - 0.4 -> 1
-  // ...
-  // 9.8 - 10 -> 49
-  // 10  - 20 -> 50
-  int abstract_state = static_cast<int>(std::lround(state/(0.2f)));
-  abstract_state < 0 ? abstract_state = 0 : (abstract_state > 50 ? abstract_state = 50 : 0);   
+  // -inf -  0.0 -> 0
+  //  0.0 -  0.5 -> 1
+  //  ...
+  //  4.5 -   5 -> 10
+  //  5   - inf -> 11
+    
+  int abstract_state = static_cast<int>(std::ceil(state/(0.5f)));
+  abstract_state < 0 ? abstract_state = 0 : (abstract_state > 11 ? abstract_state = 11 : 0);   
   std::string key = std::to_string(abstract_state);
   
   // Abstracting continuous actions to discrete value
-  // -1.0 - -0.8 -> 0
+  // -0.50 - -0.25 -> 0
+  // -0.25 -  0.00 -> 1
+  //  0.00 -  0.25 -> 2
+  //  0.25 -  0.50 -> 3 
   // ...
-  // -0.2 -  0.0 -> 4
-  //  0.0 -  0.2 -> 5
-  //  0.8 -  1.0 -> 9 
-  for(unsigned int i = 0; i < vel_profile.size(); i++) {
-    int abstract_action = static_cast<int>(std::lround(vel_profile[i]/(0.2f))) + 5;
-    abstract_action < 0 ? abstract_action = 0 : (abstract_action > 9 ? abstract_action = 9 : 0);
-    key = key + '-' + std::to_string(abstract_action);       
+  //  0.75 -  1    -> 5
+  
+  for(unsigned int i = 0; i < action_queue_.size(); i++) {
+    int abstract_action = static_cast<int>(std::ceil(action_queue_[i]/(0.25f))) + 1;
+    abstract_action < 0 ? abstract_action = 0 : (abstract_action > 5 ? abstract_action = 5 : 0);
+    key = key + '-' + std::to_string(abstract_action);    
   }
 
-  int abstract_action = static_cast<int>(std::lround(action/(0.2f))) + 5;
-  abstract_action < 0 ? abstract_action = 0 : (abstract_action > 9 ? abstract_action = 9 : 0);
+  int abstract_action = static_cast<int>(std::ceil(action/(0.25f))) + 1;
+  abstract_action < 0 ? abstract_action = 0 : (abstract_action > 5 ? abstract_action = 5 : 0);
   std::string key_temp = key + '-' + std::to_string(abstract_action);
   
   if(shield_[key_temp] > pmax_threshold) {
@@ -151,8 +176,8 @@ float Navigation_client::getShieldedAction(float state, float action){
   }
   else {
     float pmax = -1.0;
-    int pmax_i = 5;
-    for(int i = 5; i < 10 ; i++) {
+    int pmax_i = 0;
+    for(int i = 0; i <= 5 ; i++) {
       key_temp = key + '-' + std::to_string(i);
       if(shield_[key_temp] > pmax) {
         pmax = shield_[key_temp];
@@ -160,7 +185,8 @@ float Navigation_client::getShieldedAction(float state, float action){
       }
     }
     
-    return std::max(0.0, std::max(5, pmax_i)*0.2 - 1.0);
+    // pmax_i : [0,..., 5]
+    return std::max(0.0, pmax_i * 0.25 - 0.375);
   }
 }
 
@@ -213,6 +239,13 @@ void Navigation_client::UpdateVelocityProfile(float last_vel){
   vel_profile[system_lat-1] = last_vel;
 }
 
+void Navigation_client::UpdateActionQueue(float last_action){
+  for(int act_idx = 0; act_idx < total_lat_-1; act_idx++){
+    action_queue_[act_idx] = action_queue_[act_idx+1];  
+  }
+  action_queue_[total_lat_-1] = last_action;
+}
+
 void Navigation_client::SetNavGoal(const Vector2f& loc, float angle) {
 }
 
@@ -246,7 +279,7 @@ void Navigation_client::QueueSrvMsg(srvMsgStruct srvMsg) {
   srv_msg_queue_.push(srvMsg);
 }
 
-std::tuple<float, float> Navigation_client::getOptimalAction(float distance_remaining) {
+float Navigation_client::CompensateSystemDelay(float distance_remaining) {
   
   /**
    * Time optimal control with compensation for system latency
@@ -261,10 +294,8 @@ std::tuple<float, float> Navigation_client::getOptimalAction(float distance_rema
     vel_sum += vel_profile[vel_idx];
   }
   float dis_rem_delay_compensated = distance_remaining - (vel_sum) * del_t;
-  float v0 = vel_profile[system_lat - 1];
-  float opt_action = OneDTimeOptimalControl(v0, dis_rem_delay_compensated);
   
-  return std::make_tuple(opt_action, dis_rem_delay_compensated);
+  return dis_rem_delay_compensated;
 }
 
 /**
@@ -308,13 +339,19 @@ void Navigation_client::Run() {
   }
   //std::cout << "Time delay set for system: " <<  (ros::Time::now() - scan_time_stamp)*1000 << "\n";
   
-  //Obtain optimal action
-  float opt_action, dis_rem_delay_compensated; 
-  std::tie(opt_action, dis_rem_delay_compensated) = getOptimalAction(distance_remaining_);
+  /*
+    OBTAIN OPTIMAL ACTION
+      If no shield is present use default system delay compensation.
+      Else shield for total delay (system delay + network delay) 
+  */
+  float dis_rem_delay_compensated = CompensateSystemDelay(distance_remaining_);
+  
+  float opt_action = OneDTimeOptimalControl(vel_profile[system_lat - 1], dis_rem_delay_compensated);
+  // float opt_action = OneDTimeOptimalControl(vel_profile[system_lat - 1], distance_remaining_);
   //std::cout << "Dis rem: " << distance_remaining_ << "; Del comp dis rem: " << dis_rem_delay_compensated << "\n";
   
-  // Obtain shielded action
-  // float shielded_action = getShieldedAction(distance_remaining_ + 0.2, opt_action); //0.2 because shield considers distance below 0.2 as unsafe
+  // OBTAIN SHIELDED ACTION
+  // float shielded_action = getShieldedAction(distance_remaining_, opt_action);
 
   float shielded_action = opt_action;
   
@@ -324,6 +361,7 @@ void Navigation_client::Run() {
   
   // Update velocity profile
   UpdateVelocityProfile(drive_msg_.velocity);
+  UpdateActionQueue(drive_msg_.velocity);
 
   // Create visualizations.
   local_viz_msg_.header.stamp = ros::Time::now();
@@ -331,6 +369,11 @@ void Navigation_client::Run() {
   drive_msg_.header.stamp = ros::Time::now();
   visualization::DrawRobotMargin(length, width, wheel_base, track_width, safety_margin, local_viz_msg_);
   //visualization::DrawCross(collision_point, 0.5, 0x000000, local_viz_msg_);
+
+  // LOG DATA
+  log_file_run_loop << dis_rem_delay_compensated << ','
+                    << opt_action << ','
+                    << shielded_action << '\n';
 
   // Publish messages.
   viz_pub_.publish(local_viz_msg_);
