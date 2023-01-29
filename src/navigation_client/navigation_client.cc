@@ -98,15 +98,16 @@ Navigation_client::Navigation_client(const string& map_file, ros::NodeHandle* n)
       Example:
         Let,
           net_lat  = 4
-          time_per = 0.05
-          des_del  = 0.20 (net_lat * time_per)
+          time_per = 0.1
+          des_del  = 0.40 (net_lat * time_per)
+          server_del_t = 0.05
         
         Then, if the current time is t,
-          srv_msg_queue_ = [t - 0.200, t - 0.175, t - 0.150, t - 0.125,
-                            t - 0.100, t - 0.075, t - 0.050, t - 0.025, t]
+          srv_msg_queue_ = [t - 0.400, t - 0.350, t - 0.300, t - 0.250,
+                            t - 0.200, t - 0.150, t - 0.100, t - 0.050, t]
         
         This means that the first information processed by the Run() loop
-        has a time stamp of (t - 0.200)
+        has a time stamp of (t - 0.400)
   */
   for (int16_t i = 0; i < 2*net_lat + 1; i++) {
     ros::Duration d(des_del - tim_per*0.5*i); //in seconds
@@ -117,11 +118,11 @@ Navigation_client::Navigation_client(const string& map_file, ros::NodeHandle* n)
   /*
     LOGGING STATE-ACTION DATA
   */
-  log_file_run_loop << "State, Optimal Action, Shielded, Action \n";
+  log_file_run_loop << "State, Optimal Action, Shielded Action \n";
 }
 
 void Navigation_client::readShieldCSV() {
-  std::ifstream fin("data/own_state_action_values_4_td_csv.csv");
+  std::ifstream fin("data/state_action_safety_values_4_td.csv");
   if (!fin) {
     std::cout << "Error, could not open file" << std::endl;
   }
@@ -334,7 +335,7 @@ void Navigation_client::Run() {
     while (((ros::Time::now() - srvMsg.scan_time_stamp).toSec()) > des_del);
   }
   else {
-    //std::cout << "Server msg queue empty \n";
+    std::cout << "Server msg queue empty \n";
     scan_time_stamp    = ros::Time::now();
   }
   //std::cout << "Time delay set for system: " <<  (ros::Time::now() - scan_time_stamp)*1000 << "\n";
@@ -346,14 +347,13 @@ void Navigation_client::Run() {
   */
   float dis_rem_delay_compensated = CompensateSystemDelay(distance_remaining_);
   
-  float opt_action = OneDTimeOptimalControl(vel_profile[system_lat - 1], dis_rem_delay_compensated);
-  // float opt_action = OneDTimeOptimalControl(vel_profile[system_lat - 1], distance_remaining_);
-  //std::cout << "Dis rem: " << distance_remaining_ << "; Del comp dis rem: " << dis_rem_delay_compensated << "\n";
+  // float opt_action = OneDTimeOptimalControl(vel_profile[system_lat - 1], dis_rem_delay_compensated);
+  float opt_action = OneDTimeOptimalControl(vel_profile[system_lat - 1], distance_remaining_);
+  std::cout << "Dis rem: " << distance_remaining_ << std::endl;
   
   // OBTAIN SHIELDED ACTION
-  // float shielded_action = getShieldedAction(distance_remaining_, opt_action);
-
-  float shielded_action = opt_action;
+  float shielded_action = getShieldedAction(distance_remaining_, opt_action);
+  // float shielded_action = opt_action;
   
   // Update drive message
   drive_msg_.curvature = chosen_curvature_;

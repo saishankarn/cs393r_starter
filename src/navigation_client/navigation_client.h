@@ -129,10 +129,10 @@ class Navigation_client {
   float tim_per = del_t;                                     // 50 milli-seconds
   
   // Delay encountered by the system due to network latency
-  float des_del = tim_per*((float)net_lat);
   std::array<float, system_lat> vel_profile = {0.0};
 
-  const static int total_lat_  = system_lat + net_lat; 
+  const static int total_lat_  = system_lat + net_lat;
+  float des_del = tim_per*((float)total_lat_);
   std::array<float, total_lat_> action_queue_ = {0.0};
 
   // navigation variables
@@ -152,7 +152,6 @@ class Navigation_client {
 
   // Handling server messages
   std::queue<srvMsgStruct> srv_msg_queue_;
-
 
 };
 

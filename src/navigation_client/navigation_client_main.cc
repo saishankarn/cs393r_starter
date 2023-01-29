@@ -92,8 +92,8 @@ void ServerPathParamCallback(const geometry_msgs::PointStamped& msg) {
   srvMsg.scan_time_stamp = msg.header.stamp;
 
   navigation_client_->QueueSrvMsg(srvMsg);
-  std::cout << "Laser scan time-stamp" << srvMsg.scan_time_stamp << std::endl;
-  std::cout << "Network time delay: " << (ros::Time::now() - srvMsg.scan_time_stamp)*1000.0 << std::endl;
+  // std::cout << "Laser scan time-stamp" << srvMsg.scan_time_stamp << std::endl;
+  // std::cout << "Network time delay: " << (ros::Time::now() - srvMsg.scan_time_stamp)*1000.0 << std::endl;
   
   log_file_spin_loop << (ros::Time::now() - srvMsg.scan_time_stamp)*1000.0
                      << '\n';
@@ -158,11 +158,11 @@ int main(int argc, char** argv) {
   RateLoop loop(10.0);
   loop.Sleep();
   while (run_ && ros::ok()) {
-    std::cout << "-----------------------" << std::endl;
+    // std::cout << "-----------------------" << std::endl;
     ros::spinOnce();
     navigation_client_->Run();
     loop.Sleep();
-    std::cout << "-----------------------" << std::endl;
+    // std::cout << "-----------------------" << std::endl;
   }
   delete navigation_client_;
   return 0;
