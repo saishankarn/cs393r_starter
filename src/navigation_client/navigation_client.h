@@ -117,7 +117,7 @@ class Navigation_client {
   float chosen_curvature_;
 
   // kinematic variables 
-  float max_acc = 4.0;
+  float max_acc = 2.0;
   float max_dec = 4.0;
   float max_vel = 1.0;
   float del_t = 0.10;
@@ -126,10 +126,10 @@ class Navigation_client {
   const static int net_lat_ =  2;
   
   // Delay encountered by the system due to network latency
-  std::array<float, system_lat_> vel_profile = {0.0};
+  std::array<float, system_lat_> vel_profile = {0.0f};
 
   const static int total_lat_  = system_lat_ + net_lat_;
-  std::array<float, total_lat_> action_queue_ = {0.0};
+  std::array<float, total_lat_> action_queue_ = {0.0f};
 
   int ntw_time_delay_ = 0;
 

@@ -100,7 +100,7 @@ Navigation_client::Navigation_client(const string& map_file, ros::NodeHandle* n)
 }
 
 void Navigation_client::readShieldCSV() {
-  std::ifstream fin("data/state_action_safety_values_4_td.csv");
+  std::ifstream fin("data/state_action_safety_values_4_rand_td.csv");
   if (!fin) {
     std::cout << "Error, could not open file" << std::endl;
   }
@@ -139,18 +139,28 @@ float Navigation_client::getShieldedAction(float state, float action){
   //  0.25 -  0.50 -> 3 
   // ...
   //  0.75 -  1    -> 5
+  //  invalid action -> 9
   
-  for(unsigned int i = 0; i < action_queue_.size(); i++) {
-    int abstract_action = static_cast<int>(std::ceil(action_queue_[i]/(0.25f))) + 1;
+  double epsilon = 0.00;
+  unsigned int j = total_lat_;
+  for(unsigned int i = net_lat_ - ntw_time_delay_; i < total_lat_; i++) {
+    int abstract_action = static_cast<int>(std::ceil(action_queue_[i]/(0.25f) + epsilon)) + 1;
     abstract_action < 0 ? abstract_action = 0 : (abstract_action > 5 ? abstract_action = 5 : 0);
-    key = key + '-' + std::to_string(abstract_action);    
+    key = key + '-' + std::to_string(abstract_action);
+    j = j - 1;
   }
+  while(j > 0) {
+    key = key + '-' + std::to_string(9); // add invalid actions to fill the buffer
+    j = j - 1;
+  }
+  std::cout << "Keys of shield dictionary (only state): " << key << std::endl;
 
-  int abstract_action = static_cast<int>(std::ceil(action/(0.25f))) + 1;
+  int abstract_action = static_cast<int>(std::ceil(action/(0.25f) + epsilon)) + 1;
   abstract_action < 0 ? abstract_action = 0 : (abstract_action > 5 ? abstract_action = 5 : 0);
   std::string key_temp = key + '-' + std::to_string(abstract_action);
   
-  if(shield_[key_temp] > pmax_threshold) {
+  std::cout << "Pmax value of controller's action: " << shield_[key_temp] << std::endl;
+  if(shield_[key_temp] >= pmax_threshold) {
     return action;
   }
   else {
@@ -165,7 +175,7 @@ float Navigation_client::getShieldedAction(float state, float action){
     }
     
     // pmax_i : [0,..., 5]
-    return std::max(0.0, pmax_i * 0.25 - 0.375);
+    return std::max(0.0, pmax_i * 0.25 - 0.250);
   }
 }
 
@@ -188,6 +198,7 @@ std::tuple<Eigen::Vector2f, float> Navigation_client::getRelativePose(
  * @return float - Desired current velocity
  */
 float Navigation_client::OneDTimeOptimalControl(float v0, float distance_remaining){
+  std::cout << "v0: " << v0 << ", distance_remaining: " << distance_remaining << std::endl;
   float v1 = 0;
   if (distance_remaining <= 0.0) {
     v1 = 0.0;
@@ -198,6 +209,7 @@ float Navigation_client::OneDTimeOptimalControl(float v0, float distance_remaini
     float del_s1 = v1*del_t + 0.5*v1*v1/max_dec;
     float del_s2 = 0.5*v0*v0/max_dec;
     if (v1 <= max_vel && del_s1 < distance_remaining) {
+      std::cout << "v1: " << v1 << std::endl;
       return v1;
     }
     else if (v0 <= max_vel && del_s2 < distance_remaining) {
@@ -206,6 +218,7 @@ float Navigation_client::OneDTimeOptimalControl(float v0, float distance_remaini
     else {
       v1 = v0 - max_dec*del_t;
       v1 = std::max(v1, (float )0);
+      std::cout << "v1: " << v1 << std::endl;
       return v1;
     }
   }
@@ -311,13 +324,13 @@ void Navigation_client::Run() {
       Else shield for total delay (system delay + network delay) 
   */
   
-  float dis_rem_delay_compensated = CompensateSystemDelay(distance_remaining_);
-  float opt_action = OneDTimeOptimalControl(vel_profile[system_lat_ - 1], dis_rem_delay_compensated);
-  // float opt_action = OneDTimeOptimalControl(vel_profile[system_lat_ - 1], distance_remaining_);
+  // float dis_rem_delay_compensated = CompensateSystemDelay(distance_remaining_);
+  // float opt_action = OneDTimeOptimalControl(vel_profile[system_lat_ - 1], dis_rem_delay_compensated);
+  float opt_action = OneDTimeOptimalControl(vel_profile[system_lat_ - 1], distance_remaining_);
   
   // OBTAIN SHIELDED ACTION
-  // float shielded_action = getShieldedAction(distance_remaining_, opt_action);
-  float shielded_action = opt_action;
+  float shielded_action = getShieldedAction(distance_remaining_, opt_action);
+  // float shielded_action = opt_action;
   
   // Update drive message
   drive_msg_.curvature = chosen_curvature_;
@@ -345,7 +358,8 @@ void Navigation_client::Run() {
   drive_pub_.publish(drive_msg_);
 
   // PRINT CONSOLE MESSAGES
-  std::cout << "Network Delay - (s): " << ntw_delay_sec << ", (time steps): " << ntw_time_delay_ << std::endl;
+  std::cout << "Controller action: " << opt_action << ", Shielded action: " << shielded_action << std::endl;
+  std::cout << "Network Delay - (ms): " << ntw_delay_sec*1000 << ", (time steps): " << ntw_time_delay_ << std::endl;
   std::cout << "Dis rem: " << distance_remaining_ << std::endl;
 }
 
