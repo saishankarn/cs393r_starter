@@ -74,7 +74,9 @@ Navigation_client::Navigation_client(const string& map_file, ros::NodeHandle* n)
     nav_goal_angle_(0),
     distance_remaining_(0.0),
     chosen_curvature_(0.0),
-    center_of_curve(0, 0){
+    center_of_curve(0, 0),
+    srv_msg_{distance_remaining_, chosen_curvature_, ros::Time::now()}
+    {
   drive_pub_ = n->advertise<AckermannCurvatureDriveMsg>(
       "ackermann_curvature_drive", 1);
   viz_pub_ = n->advertise<VisualizationMsg>("visualization", 1);
@@ -90,30 +92,6 @@ Navigation_client::Navigation_client(const string& map_file, ros::NodeHandle* n)
       after this function call.
   */
   readShieldCSV();
-
-  /*
-    SERVER MESSAGE QUEUE:
-      The server publishes at twice the rate that the client subscribes.
-      The initial size of the srv_msg_queue_ will be (2*net_lat + 1).
-      Example:
-        Let,
-          net_lat  = 4
-          time_per = 0.1
-          des_del  = 0.40 (net_lat * time_per)
-          server_del_t = 0.05
-        
-        Then, if the current time is t,
-          srv_msg_queue_ = [t - 0.400, t - 0.350, t - 0.300, t - 0.250,
-                            t - 0.200, t - 0.150, t - 0.100, t - 0.050, t]
-        
-        This means that the first information processed by the Run() loop
-        has a time stamp of (t - 0.400)
-  */
-  for (int16_t i = 0; i < 2*net_lat + 1; i++) {
-    ros::Duration d(des_del - tim_per*0.5*i); //in seconds
-    srvMsgStruct srvMsg = {distance_remaining_, chosen_curvature_, ros::Time::now() - d};
-    srv_msg_queue_.push(srvMsg);
-  }
 
   /*
     LOGGING STATE-ACTION DATA
@@ -234,10 +212,10 @@ float Navigation_client::OneDTimeOptimalControl(float v0, float distance_remaini
 }
 
 void Navigation_client::UpdateVelocityProfile(float last_vel){
-  for(int vel_idx = 0; vel_idx < system_lat-1; vel_idx++){
+  for(int vel_idx = 0; vel_idx < system_lat_-1; vel_idx++){
     vel_profile[vel_idx] = vel_profile[vel_idx+1];  
   }
-  vel_profile[system_lat-1] = last_vel;
+  vel_profile[system_lat_-1] = last_vel;
 }
 
 void Navigation_client::UpdateActionQueue(float last_action){
@@ -276,8 +254,8 @@ void Navigation_client::UpdateOdometry(const Vector2f& loc,
   odom_angle_ = angle;
 }
 
-void Navigation_client::QueueSrvMsg(srvMsgStruct srvMsg) {
-  srv_msg_queue_.push(srvMsg);
+void Navigation_client::WriteSrvMsg(srvMsgStruct srvMsg) {
+  srv_msg_ = srvMsg;
 }
 
 float Navigation_client::CompensateSystemDelay(float distance_remaining) {
@@ -291,7 +269,7 @@ float Navigation_client::CompensateSystemDelay(float distance_remaining) {
    * 
    */
   float vel_sum = 0.0f;
-  for(int vel_idx = 0; vel_idx < system_lat; vel_idx++){
+  for(int vel_idx = 0; vel_idx < system_lat_; vel_idx++){
     vel_sum += vel_profile[vel_idx];
   }
   float dis_rem_delay_compensated = distance_remaining - (vel_sum) * del_t;
@@ -317,28 +295,15 @@ void Navigation_client::Run() {
   float relAngle;
   std::tie(relPos, relAngle) = getRelativePose(odom_start_loc_, odom_start_angle_, odom_loc_, odom_angle_);
  
-  // Dequeue server commands
-  ros::Time scan_time_stamp;
-  if (!srv_msg_queue_.empty()) {
-    srvMsgStruct srvMsg = srv_msg_queue_.front();;
-    do {
-      distance_remaining_ = srvMsg.distance_remaining;
-      chosen_curvature_   = srvMsg.curvature;
-      scan_time_stamp     = srvMsg.scan_time_stamp;
-      srv_msg_queue_.pop();
-      if (srv_msg_queue_.empty())
-        break;
-      else {
-        srvMsg = srv_msg_queue_.front();
-      }
-    }
-    while (((ros::Time::now() - srvMsg.scan_time_stamp).toSec()) > des_del);
-  }
-  else {
-    std::cout << "Server msg queue empty \n";
-    scan_time_stamp    = ros::Time::now();
-  }
-  //std::cout << "Time delay set for system: " <<  (ros::Time::now() - scan_time_stamp)*1000 << "\n";
+  // Read server commands
+  distance_remaining_  = srv_msg_.distance_remaining;
+  chosen_curvature_    = srv_msg_.curvature;
+
+  double ntw_delay_sec = (ros::Time::now() - srv_msg_.scan_time_stamp).toSec();
+  ntw_time_delay_      = static_cast<int>(std::floor(ntw_delay_sec/del_t));
+  if(ntw_time_delay_ > net_lat_)
+    std::cout << "Network time delay has exceeded maximum network latency" << std::endl;
+  ntw_time_delay_ = std::min(net_lat_, ntw_time_delay_);
   
   /*
     OBTAIN OPTIMAL ACTION
@@ -346,14 +311,13 @@ void Navigation_client::Run() {
       Else shield for total delay (system delay + network delay) 
   */
   
-  // float dis_rem_delay_compensated = CompensateSystemDelay(distance_remaining_);
-  // float opt_action = OneDTimeOptimalControl(vel_profile[system_lat - 1], dis_rem_delay_compensated);
-  float opt_action = OneDTimeOptimalControl(vel_profile[system_lat - 1], distance_remaining_);
-  std::cout << "Dis rem: " << distance_remaining_ << std::endl;
+  float dis_rem_delay_compensated = CompensateSystemDelay(distance_remaining_);
+  float opt_action = OneDTimeOptimalControl(vel_profile[system_lat_ - 1], dis_rem_delay_compensated);
+  // float opt_action = OneDTimeOptimalControl(vel_profile[system_lat_ - 1], distance_remaining_);
   
   // OBTAIN SHIELDED ACTION
-  float shielded_action = getShieldedAction(distance_remaining_, opt_action);
-  // float shielded_action = opt_action;
+  // float shielded_action = getShieldedAction(distance_remaining_, opt_action);
+  float shielded_action = opt_action;
   
   // Update drive message
   drive_msg_.curvature = chosen_curvature_;
@@ -379,7 +343,10 @@ void Navigation_client::Run() {
   viz_pub_.publish(local_viz_msg_);
   viz_pub_.publish(global_viz_msg_);
   drive_pub_.publish(drive_msg_);
-  
+
+  // PRINT CONSOLE MESSAGES
+  std::cout << "Network Delay - (s): " << ntw_delay_sec << ", (time steps): " << ntw_time_delay_ << std::endl;
+  std::cout << "Dis rem: " << distance_remaining_ << std::endl;
 }
 
 }  // namespace navigation_client

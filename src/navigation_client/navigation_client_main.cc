@@ -91,7 +91,7 @@ void ServerPathParamCallback(const geometry_msgs::PointStamped& msg) {
   srvMsg.curvature = msg.point.y;
   srvMsg.scan_time_stamp = msg.header.stamp;
 
-  navigation_client_->QueueSrvMsg(srvMsg);
+  navigation_client_->WriteSrvMsg(srvMsg);
   // std::cout << "Laser scan time-stamp" << srvMsg.scan_time_stamp << std::endl;
   std::cout << "Network time delay: " << (ros::Time::now() - srvMsg.scan_time_stamp)*1000.0 << std::endl;
   

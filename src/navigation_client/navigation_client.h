@@ -59,7 +59,7 @@ class Navigation_client {
   void UpdateLocation(const Eigen::Vector2f& loc, float angle);
 
   // Used in callback to assign the path params corresponding to a delayed laser scan
-  void QueueSrvMsg(srvMsgStruct srvMsg);
+  void WriteSrvMsg(srvMsgStruct srvMsg);
 
   // Used in callback for odometry messages to update based on odometry.
   void UpdateOdometry(const Eigen::Vector2f& loc,
@@ -122,18 +122,16 @@ class Navigation_client {
   float max_vel = 1.0;
   float del_t = 0.10;
  
-  const static int system_lat = 2; // sens_lat + act_lat
-  const static int net_lat =  2;
-  
-  // Controller sampling time in seconds
-  float tim_per = del_t;                                     // 50 milli-seconds
+  const static int system_lat_ = 2; // sens_lat + act_lat
+  const static int net_lat_ =  2;
   
   // Delay encountered by the system due to network latency
-  std::array<float, system_lat> vel_profile = {0.0};
+  std::array<float, system_lat_> vel_profile = {0.0};
 
-  const static int total_lat_  = system_lat + net_lat;
-  float des_del = tim_per*((float)total_lat_);
+  const static int total_lat_  = system_lat_ + net_lat_;
   std::array<float, total_lat_> action_queue_ = {0.0};
+
+  int ntw_time_delay_ = 0;
 
   // navigation variables
   float length = 0.55;
@@ -151,8 +149,7 @@ class Navigation_client {
   float getShieldedAction(float state, float action);
 
   // Handling server messages
-  std::queue<srvMsgStruct> srv_msg_queue_;
-
+  srvMsgStruct srv_msg_{0.0 , 0.0, ros::Time()};
 };
 
 }  // namespace navigation_client
