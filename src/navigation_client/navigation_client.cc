@@ -345,8 +345,8 @@ void Navigation_client::Run() {
       If no shield is present use default system delay compensation.
       Else shield for total delay (system delay + network delay) 
   */
-  float dis_rem_delay_compensated = CompensateSystemDelay(distance_remaining_);
   
+  // float dis_rem_delay_compensated = CompensateSystemDelay(distance_remaining_);
   // float opt_action = OneDTimeOptimalControl(vel_profile[system_lat - 1], dis_rem_delay_compensated);
   float opt_action = OneDTimeOptimalControl(vel_profile[system_lat - 1], distance_remaining_);
   std::cout << "Dis rem: " << distance_remaining_ << std::endl;
@@ -371,7 +371,7 @@ void Navigation_client::Run() {
   //visualization::DrawCross(collision_point, 0.5, 0x000000, local_viz_msg_);
 
   // LOG DATA
-  log_file_run_loop << dis_rem_delay_compensated << ','
+  log_file_run_loop << distance_remaining_ << ','
                     << opt_action << ','
                     << shielded_action << '\n';
 
