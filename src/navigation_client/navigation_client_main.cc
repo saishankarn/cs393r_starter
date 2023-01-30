@@ -76,7 +76,8 @@ DEFINE_string(map, "maps/GDC1.txt", "Name of vector map file");
 DEFINE_string(server_topic, "server_path_params", "Name of ROS topic for path params from the server side");
 
 // Logging File
-static std::ofstream log_file_spin_loop("log/2023-jan-28/spin_loop_" + std::to_string(std::time(0)) + ".csv");
+static std::ofstream log_file_spin_loop("log/2023-jan-29/const_td/spin_loop_" 
+                                        + std::to_string(std::time(0)) + ".csv");
 
 bool run_ = true;
 //sensor_msgs::LaserScan last_laser_msg_;
