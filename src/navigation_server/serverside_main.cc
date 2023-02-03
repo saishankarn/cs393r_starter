@@ -23,7 +23,7 @@
 #include <stdlib.h>
 #include <math.h>
 #include <stdio.h>
-#include <string.h> 
+#include <string.h>  
 #include <inttypes.h>
 #include <vector>
  
@@ -120,7 +120,7 @@ int main(int argc, char** argv) {
   ros::Subscriber laser_sub =
       n.subscribe(FLAGS_laser_topic, 20, &LaserCallback);
 
-  RateLoop loop(40.0);
+  RateLoop loop(20.0);
 
   while (run_ && ros::ok()) {
     std::cout << "-----------------" << "\n";

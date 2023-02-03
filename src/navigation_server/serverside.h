@@ -99,13 +99,13 @@ class Serverside {
   float width = 0.3;
   float wheel_base = 0.32;
   float track_width = 0.16;
-  float safety_margin = 0.05; 
+  float safety_margin = 0.05;
 
   Eigen::Vector2f center_of_curve;
 
   // synchronization variables and constants 
   float scan_frequency = 40.0;
-  float server_frequency = 40.0;
+  float server_frequency = 20.0;
   int choose_after = static_cast<int>(scan_frequency/server_frequency);
   int choice_index = 0;
 
