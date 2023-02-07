@@ -33,6 +33,7 @@
 #include "eigen3/Eigen/Geometry"
 #include "gflags/gflags.h"
 #include "sensor_msgs/LaserScan.h"
+#include "sensor_msgs/Joy.h"
 #include "ros/ros.h"
 #include "shared/math/math_util.h"
 #include "shared/util/timer.h"
@@ -40,6 +41,7 @@
 
 #include "serverside.h"
 
+using math_util::Bound;
 using math_util::DegToRad;
 using math_util::RadToDeg;
 using serverside::Serverside;
@@ -56,11 +58,21 @@ using namespace std;
 // Create command line arguments
 DEFINE_string(laser_topic, "scan", "Name of ROS topic for LIDAR data");
 DEFINE_string(map, "maps/GDC1.txt", "Name of vector map file");
+DEFINE_string(joystick_topic, "joy", "Name of ROS topic for Joystick data");
 
 bool run_ = true;
 sensor_msgs::LaserScan last_laser_msg_;
 Serverside* serverside_ = nullptr; //pointer to the object belonging to the Serverside class
 
+
+
+void JoystickCallback(const sensor_msgs::Joy& msg) {
+  Vector2f joystick_msg_;
+  joystick_msg_[0] = msg.axes[0];
+  joystick_msg_[1] = msg.axes[4];
+  cout << "joystick message : " << msg.axes[0] << ", " << msg.axes[4] << '\n';
+  serverside_->ObserveJoystickMsg(joystick_msg_);
+}
 
 void LaserCallback(const sensor_msgs::LaserScan& msg) {
   if (FLAGS_v > 0) {
@@ -119,16 +131,18 @@ int main(int argc, char** argv) {
 
   ros::Subscriber laser_sub =
       n.subscribe(FLAGS_laser_topic, 20, &LaserCallback);
+  ros::Subscriber joystick_sub =
+      n.subscribe(FLAGS_joystick_topic, 20, &JoystickCallback);
 
   RateLoop loop(20.0);
 
   while (run_ && ros::ok()) {
-    std::cout << "-----------------" << "\n";
-    std::cout << "within while loop" << "\n";
+    //std::cout << "-----------------" << "\n";
+    //std::cout << "within while loop" << "\n";
     ros::spinOnce();
     serverside_->PopulateServersideBuffers();
     
-    serverside_->Run();
+    serverside_->Run(); 
     loop.Sleep();
   }
 

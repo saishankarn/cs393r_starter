@@ -53,6 +53,10 @@ class Serverside {
   void ObservePointCloud(const std::vector<Eigen::Vector2f>& cloud,
                          ros::Time time);
 
+  // Updates based on observed joystick message 
+  void ObserveJoystickMsg(Eigen::Vector2f joystick_msg);
+  float Clip(float x, float x_min, float x_max); 
+
   void PopulateServersideBuffers();
 
   // Main function called continously from main
@@ -61,6 +65,8 @@ class Serverside {
   std::tuple<float, float, float> GetPathScoringParams(float curvature_of_turning, Eigen::Vector2f& closest_point);
 
   Eigen::Vector2f TransformAndEstimatePointCloud(float x, float y, float theta, Eigen::Vector2f pt);
+
+  
 
  private:
 
@@ -92,7 +98,7 @@ class Serverside {
   const static int net_lat =  5;
   const static int system_lat = sens_lat + act_lat;
   std::array<float, system_lat> vel_profile = {0};
-  float vel_sum = 0;
+  float vel_sum = 0; 
 
   // navigation variables
   float length = 0.55;
@@ -108,6 +114,27 @@ class Serverside {
   float server_frequency = 20.0;
   int choose_after = static_cast<int>(scan_frequency/server_frequency);
   int choice_index = 0;
+
+  // joystick commands
+  float velocity_ = 0.0; 
+  float curvature_ = 0.0;
+  float last_speed_ = 0;
+  float last_steering_angle_ = 0;
+
+  // joystick constants
+  const float kMaxTurnRate = 0.25;
+  const float max_speed = 1.0;
+  const float max_accel_ = 6.0;
+  const float max_decel_ = 6.0; 
+  const float kCommandInterval = 0.1;
+  const float speed_to_erpm_gain_ = 5356.0;
+  const float speed_to_erpm_offset_ = 180.0;
+  const float steering_to_servo_gain_ = -0.9015;
+  const float steering_to_servo_offset_ = 0.5;
+  const float erpm_speed_limit_ = 22000;
+  const float servo_min_ = 0.05;
+  const float servo_max_ = 0.95;
+  const float wheelbase_ = 0.324;
 
 };
 

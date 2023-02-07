@@ -234,7 +234,7 @@ void Serverside::ObservePointCloud(const vector<Vector2f>& cloud,
 
 void Serverside::PopulateServersideBuffers() {
 
-  std::cout << "The current value of choice index is " << choice_index << "\n";
+  //std::cout << "The current value of choice index is " << choice_index << "\n";
 
   if (size(point_cloud_stack_) > 0) {
     int loc = choice_index;
@@ -244,7 +244,7 @@ void Serverside::PopulateServersideBuffers() {
         //std::cout << size(point_cloud_stack_[pc_idx]) << "\n";
         serverside_point_cloud_buffer_.push_back(point_cloud_stack_[pc_idx]);
         serverside_point_cloud_time_stamp_buffer_.push_back(point_cloud_time_stamp_stack_[pc_idx]);
-      }
+      } 
     }
     choice_index = loc % choose_after + 1;
     point_cloud_stack_.clear();
@@ -270,15 +270,67 @@ Vector2f Serverside::TransformAndEstimatePointCloud(float x, float y, float thet
   return Vector2f(pt3[0], pt3[1]);
 }
 
+float Serverside::Clip(float x, float x_min, float x_max) {
+  if (x < x_min) {
+    return x_min;
+  }
+  if (x > x_max) {
+    return x_max;
+  }
+  return x;
+}
+
+void Serverside::ObserveJoystickMsg(Vector2f joystick_msg){
+  float steer_joystick = joystick_msg[0];
+  float drive_joystick = joystick_msg[1];
+
+  float speed = drive_joystick * max_speed;
+  float steering_angle = steer_joystick * kMaxTurnRate;
+  float mux_steering_angle_ = steering_angle;
+
+  float max_accel = ((last_speed_ > 0.0) ? max_accel_ : max_decel_);
+  float max_decel = ((last_speed_ > 0.0) ? max_decel_ : max_accel_);
+  //std::cout << max_accel << "  " << max_decel << '\n';
+
+  float smooth_speed = math_util::Clamp<float>(speed,
+                                                      last_speed_ - kCommandInterval * max_decel,
+                                                      last_speed_ + kCommandInterval * max_accel);
+  last_speed_ = smooth_speed;
+  //std::cout << smooth_speed << '\n';
+
+  float erpm = speed_to_erpm_gain_ * smooth_speed + speed_to_erpm_offset_;
+
+  // calc steering angle (servo)
+  float servo = steering_to_servo_gain_ * mux_steering_angle_ + steering_to_servo_offset_;
+
+  // Set speed command.
+  float erpm_clipped = Clip(erpm, -erpm_speed_limit_, erpm_speed_limit_);
+  //vesc_.setSpeed(erpm_clipped);
+
+  // Set servo position command.
+  float clipped_servo = Clip(servo, servo_min_, servo_max_);
+  //vesc_.setServo(clipped_servo);
+
+  mux_steering_angle_ = (clipped_servo - steering_to_servo_offset_) / steering_to_servo_gain_;
+  last_steering_angle_ = mux_steering_angle_;
+
+  float clipped_speed = (erpm_clipped - speed_to_erpm_offset_) / speed_to_erpm_gain_;
+  velocity_ = clipped_speed;
+  float turn_radius = mux_steering_angle_ != 0 ? wheelbase_ / tan(mux_steering_angle_) : 0;
+  curvature_ = turn_radius != 0 ?  1.0 / turn_radius : 0; 
+
+  std::cout << velocity_ << "     " << curvature_ << '\n';
+}
+
 //vector<bool> Navigation::DetectCollisionPts(float curvature)
 
 void Serverside::Run() {
   // This function gets called 20 times a second to form the control loop.
   // get the required point cloud from the point cloud stack
-  std::cout << "The size of the serverside point cloud buffer is " << size(serverside_point_cloud_buffer_) << "\n";
+  //std::cout << "The size of the serverside point cloud buffer is " << size(serverside_point_cloud_buffer_) << "\n";
   if (size(serverside_point_cloud_buffer_) > 0) {
     point_cloud_ = serverside_point_cloud_buffer_[0];
-    std::cout << "point cloud size " << size(point_cloud_) << "\n"; 
+    //std::cout << "point cloud size " << size(point_cloud_) << "\n"; 
     point_cloud_time_stamp_ = serverside_point_cloud_time_stamp_buffer_[0];
     serverside_point_cloud_buffer_.erase(serverside_point_cloud_buffer_.begin());
     serverside_point_cloud_time_stamp_buffer_.erase(serverside_point_cloud_time_stamp_buffer_.begin());
@@ -327,11 +379,11 @@ void Serverside::Run() {
     //std::cout << "the distance remaning" << freePathLengthCandidate << "\n";
     distance_remaining = freePathLengthCandidate;
     collision_point = collision_point_candidate;
-    std::cout << "distance remaining" << distance_remaining << "\n";
+    //std::cout << "distance remaining" << distance_remaining << "\n";
 
     server_msg_.point.x = distance_remaining;
-    server_msg_.point.y = curvature_candidate;
-    server_msg_.point.z = 0.0;
+    server_msg_.point.y = curvature_;
+    server_msg_.point.z = velocity_;
 
 
     // Create visualizations.
