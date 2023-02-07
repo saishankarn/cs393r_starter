@@ -56,7 +56,7 @@ const float localGoal = 5.0;
 const float dtgWeight = -0.05;
 const float clWeight = 50.0;//200;
 
-std::ofstream log_file_run_loop("log/2023-jan-28/run_loop" + std::to_string(std::time(0)) + ".csv");
+std::ofstream log_file_run_loop("log/2023-jan-29/rand_td/run_loop" + std::to_string(std::time(0)) + ".csv");
 
 } //namespace
 
@@ -96,7 +96,7 @@ Navigation_client::Navigation_client(const string& map_file, ros::NodeHandle* n)
   /*
     LOGGING STATE-ACTION DATA
   */
-  log_file_run_loop << "State, Optimal Action, Shielded Action \n";
+  log_file_run_loop << "Network Latency, State, Optimal Action, Shielded Action \n";
 }
 
 void Navigation_client::readShieldCSV() {
@@ -348,7 +348,8 @@ void Navigation_client::Run() {
   //visualization::DrawCross(collision_point, 0.5, 0x000000, local_viz_msg_);
 
   // LOG DATA
-  log_file_run_loop << distance_remaining_ << ','
+  log_file_run_loop << ntw_delay_sec*1000 << ','
+                    << distance_remaining_ << ','
                     << opt_action << ','
                     << shielded_action << '\n';
 
