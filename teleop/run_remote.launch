@@ -1,0 +1,10 @@
+<launch>
+        <machine
+                name="swarm4.ece.utexas.edu"
+                address="swarm4.ece.utexas.edu"
+                env-loader="/opt/ros/noetic/env_server.sh"
+                default="true"
+                user="sb59938"
+        />
+        <node machine="swarm4.ece.utexas.edu" pkg="joy" name="joy" type="joy_node" />
+</launch>

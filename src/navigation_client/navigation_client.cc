@@ -56,7 +56,7 @@ const float localGoal = 5.0;
 const float dtgWeight = -0.05;
 const float clWeight = 50.0;//200;
 
-std::ofstream log_file_run_loop("log/2023-jan-29/rand_td/run_loop" + std::to_string(std::time(0)) + ".csv");
+std::ofstream log_file_run_loop("log/2023-feb-08/teleop/old/run_loop" + std::to_string(std::time(0)) + ".csv");
 
 } //namespace
 
@@ -74,8 +74,7 @@ Navigation_client::Navigation_client(const string& map_file, ros::NodeHandle* n)
     nav_goal_angle_(0),
     distance_remaining_(0.0),
     chosen_curvature_(0.0),
-    center_of_curve(0, 0),
-    srv_msg_{distance_remaining_, chosen_curvature_, ros::Time::now()}
+    center_of_curve(0, 0)
     {
   drive_pub_ = n->advertise<AckermannCurvatureDriveMsg>(
       "ackermann_curvature_drive", 1);
@@ -311,6 +310,7 @@ void Navigation_client::Run() {
   // Read server commands
   distance_remaining_  = srv_msg_.distance_remaining;
   chosen_curvature_    = srv_msg_.curvature;
+  float teleop_action  = srv_msg_.action;
 
   double ntw_delay_sec = (ros::Time::now() - srv_msg_.scan_time_stamp).toSec();
   ntw_time_delay_      = static_cast<int>(std::floor(ntw_delay_sec/del_t));
@@ -318,23 +318,22 @@ void Navigation_client::Run() {
     std::cout << "Network time delay has exceeded maximum network latency" << std::endl;
   ntw_time_delay_ = std::min(net_lat_, ntw_time_delay_);
   
-  /*
-    OBTAIN OPTIMAL ACTION
-      If no shield is present use default system delay compensation.
-      Else shield for total delay (system delay + network delay) 
-  */
-  
-  // float dis_rem_delay_compensated = CompensateSystemDelay(distance_remaining_);
-  // float opt_action = OneDTimeOptimalControl(vel_profile[system_lat_ - 1], dis_rem_delay_compensated);
-  float opt_action = OneDTimeOptimalControl(vel_profile[system_lat_ - 1], distance_remaining_);
-  
   // OBTAIN SHIELDED ACTION
-  float shielded_action = getShieldedAction(distance_remaining_, opt_action);
-  // float shielded_action = opt_action;
+  float shielded_action = getShieldedAction(distance_remaining_, teleop_action);
+  // float shielded_action = teleop_action;
+  if(teleop_action < 0.0) {
+    shielded_action = teleop_action;
+  }
+
+  std::cout << "Telop Commanded velocity:  " << teleop_action << std::endl;
+  std::cout << "Telop Commanded curvature: " << chosen_curvature_ << std::endl;
   
   // Update drive message
   drive_msg_.curvature = chosen_curvature_;
   drive_msg_.velocity  = shielded_action;
+
+  // drive_msg_.curvature = 0.0;
+  // drive_msg_.velocity  = 0.0;
   
   // Update velocity profile
   UpdateVelocityProfile(drive_msg_.velocity);
@@ -350,7 +349,7 @@ void Navigation_client::Run() {
   // LOG DATA
   log_file_run_loop << ntw_delay_sec*1000 << ','
                     << distance_remaining_ << ','
-                    << opt_action << ','
+                    << teleop_action << ','
                     << shielded_action << '\n';
 
   // Publish messages.
@@ -359,7 +358,7 @@ void Navigation_client::Run() {
   drive_pub_.publish(drive_msg_);
 
   // PRINT CONSOLE MESSAGES
-  std::cout << "Controller action: " << opt_action << ", Shielded action: " << shielded_action << std::endl;
+  std::cout << "Controller action: " << teleop_action << ", Shielded action: " << shielded_action << std::endl;
   std::cout << "Network Delay - (ms): " << ntw_delay_sec*1000 << ", (time steps): " << ntw_time_delay_ << std::endl;
   std::cout << "Dis rem: " << distance_remaining_ << std::endl;
 }

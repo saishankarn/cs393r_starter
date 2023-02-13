@@ -46,6 +46,7 @@ struct PathOption {
 struct srvMsgStruct{
   float distance_remaining;
   float curvature;
+  float action;
   ros::Time scan_time_stamp;
 };
 
@@ -149,7 +150,7 @@ class Navigation_client {
   float getShieldedAction(float state, float action);
 
   // Handling server messages
-  srvMsgStruct srv_msg_{0.0 , 0.0, ros::Time()};
+  srvMsgStruct srv_msg_{0.0 , 0.0, 0.0, ros::Time()};
 };
 
 }  // namespace navigation_client
